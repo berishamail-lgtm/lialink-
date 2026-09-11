@@ -45,7 +45,12 @@ export default function EducationDashboard() {
     await supabase.auth.signOut()
     router.push('/login')
   }
-
+async function runMatching() {
+  const res = await fetch('/api/match', { method: 'POST' })
+  const data = await res.json()
+  alert(data.message)
+  window.location.reload()
+}
   const filtered = filter === 'alla'
     ? students
     : students.filter(s => s.status === filter)
@@ -89,6 +94,12 @@ export default function EducationDashboard() {
           <h1 className="text-3xl font-bold">
             Välkommen, {profile?.full_name} 👋
           </h1>
+          <button
+  onClick={runMatching}
+  className="mt-4 bg-[#e8420a] text-white px-6 py-2 rounded-full text-sm font-bold hover:opacity-80 transition"
+>
+  🔄 Kör matchning
+</button>
           <p className="text-white/40 mt-1 text-sm">
             {education?.city} · {education?.program_name}
           </p>
