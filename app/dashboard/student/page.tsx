@@ -33,7 +33,7 @@ export default function StudentDashboard() {
       if (stud) {
         const { data: m } = await supabase
           .from('matches')
-          .select('*, companies(company_name, sector, city, description)')
+          .select('*, companies(user_id, company_name, sector, city, description)')
           .eq('student_id', stud.id)
           .order('score', { ascending: false })
         setMatches(m || [])
@@ -161,6 +161,12 @@ export default function StudentDashboard() {
                     }`}>
                       {match.status}
                     </span>
+                    <button
+  onClick={() => router.push('/dashboard/messages?to=' + match.companies?.user_id + '&name=' + match.companies?.company_name)}
+  className="mt-2 bg-white text-[#0f0e0d] px-3 py-1.5 rounded-full text-xs font-bold hover:opacity-80 transition block w-full text-center"
+>
+  Kontakta →
+</button>
                   </div>
                 </div>
               ))}
