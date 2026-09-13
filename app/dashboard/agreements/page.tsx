@@ -11,6 +11,7 @@ export default function AgreementsPage() {
   const [creating, setCreating] = useState(false)
   const supabase = createClient()
   const router   = useRouter()
+  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     async function load() {
@@ -47,17 +48,24 @@ export default function AgreementsPage() {
   }
 
   async function signAgreement(agreementId: string, role: string) {
-    const field = role === 'student'   ? 'student_signed_at'   :
-                  role === 'company'   ? 'company_signed_at'   :
-                  'education_signed_at'
+    const res = await fetch('/api/signera', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agreementId, role, userId: user.id }),
+    })
+    const data = await res.json()
 
-    await supabase
-      .from('agreements')
-      .update({ [field]: new Date().toISOString() })
-      .eq('id', agreementId)
+    if (!res.ok) {
+      alert('Kunde inte signera: ' + (data.error || 'okänt fel'))
+      return
+    }
 
+    setConfirmed({})
     await loadAgreements(user.id, role)
-    alert('✓ Du har signerat avtalet!')
+    alert(data.allSigned
+      ? '✓ Avtalet är nu signerat av alla parter! PDF skickas till alla.'
+      : '✓ Du har signerat avtalet!')
+  
   }
 
   function hasSignedAlready(agreement: any, role: string): boolean {
@@ -192,23 +200,42 @@ export default function AgreementsPage() {
 
                   {/* Signera-knapp */}
                   {!agreement.all_signed && !signed && (
-                    <button
-                      onClick={() => signAgreement(agreement.id, profile?.role)}
-                      className="w-full bg-white text-[#0f0e0d] rounded-full py-3 font-bold text-sm hover:opacity-80 transition"
-                    >
-                      ✍️ Signera avtal
-                    </button>
+                    <div>
+                      <label className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4 mb-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!confirmed[agreement.id]}
+                          onChange={e => setConfirmed({ ...confirmed, [agreement.id]: e.target.checked })}
+                          className="mt-0.5 w-4 h-4 accent-[#e8420a]"
+                        />
+                        <span className="text-white/60 text-xs leading-relaxed">
+                          {profile?.role === 'company'
+                            ? `Jag intygar att jag är behörig att ingå detta avtal för ${agreement.companies?.company_name} och att uppgifterna ovan är korrekta.`
+                            : 'Jag har läst avtalet och intygar att uppgifterna ovan är korrekta.'}
+                        </span>
+                      </label>
+                      <button
+                        onClick={() => signAgreement(agreement.id, profile?.role)}
+                        disabled={!confirmed[agreement.id]}
+                        className="w-full bg-white text-[#0f0e0d] rounded-full py-3 font-bold text-sm hover:opacity-80 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ✍️ Signera avtal
+                      </button>
+                    </div>
                   )}
                   {signed && !agreement.all_signed && (
                     <p className="text-center text-white/30 text-sm py-2">
                       ✓ Du har signerat – väntar på övriga parter
                     </p>
                   )}
-                  {agreement.all_signed && (
-                    <p className="text-center text-green-400 text-sm py-2 font-bold">
-                      ✓ Alla parter har signerat – LIA är bekräftad!
-                    </p>
-                  )}
+               {agreement.all_signed && (
+  <div>
+    <p className="text-center text-green-400 text-sm py-2 font-bold">
+      ✓ Alla parter har signerat – LIA är bekräftad!
+    </p>
+      <button onClick={() => window.open(`/api/avtal-pdf?id=${agreement.id}`, '_blank')} className="w-full bg-white text-[#0f0e0d] rounded-full py-3 font-bold text-sm hover:opacity-80 transition">📄 Ladda ner avtal som PDF</button>
+  </div>
+)}
                 </div>
               )
             })}

@@ -45,12 +45,14 @@ export default function EducationDashboard() {
     await supabase.auth.signOut()
     router.push('/login')
   }
-async function runMatching() {
-  const res = await fetch('/api/match', { method: 'POST' })
-  const data = await res.json()
-  alert(data.message)
-  window.location.reload()
-}
+
+  async function runMatching() {
+    const res = await fetch('/api/match', { method: 'POST' })
+    const data = await res.json()
+    alert(data.message)
+    window.location.reload()
+  }
+
   const filtered = filter === 'alla'
     ? students
     : students.filter(s => s.status === filter)
@@ -70,12 +72,13 @@ async function runMatching() {
 
   return (
     <div className="min-h-screen bg-[#0f0e0d] text-white">
-      {/* Navbar */}
       <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
         <div className="font-bold text-xl">
           LIA<span className="text-[#e8420a]">link</span>
         </div>
         <div className="flex items-center gap-6">
+          <a href="/dashboard/agreements" className="text-sm text-white/40 hover:text-white transition">Avtal</a>
+          <a href="/dashboard/messages" className="text-sm text-white/40 hover:text-white transition">Meddelanden</a>
           <span className="text-white/40 text-sm">
             {education?.school_name} · {education?.program_name}
           </span>
@@ -86,7 +89,6 @@ async function runMatching() {
       </nav>
 
       <div className="max-w-6xl mx-auto px-8 py-10">
-        {/* Header */}
         <div className="mb-8">
           <p className="text-[#e8420a] text-xs font-bold uppercase tracking-widest mb-2">
             Utbildningsledare
@@ -94,24 +96,21 @@ async function runMatching() {
           <h1 className="text-3xl font-bold">
             Välkommen, {profile?.full_name} 👋
           </h1>
-          <button
-  onClick={runMatching}
-  className="mt-4 bg-[#e8420a] text-white px-6 py-2 rounded-full text-sm font-bold hover:opacity-80 transition"
->
-  🔄 Kör matchning
-</button>
           <p className="text-white/40 mt-1 text-sm">
             {education?.city} · {education?.program_name}
           </p>
+          <div className="flex gap-3 mt-4">
+            <button onClick={runMatching} className="bg-[#e8420a] text-white px-6 py-2 rounded-full text-sm font-bold hover:opacity-80 transition">🔄 Kör matchning</button>
+            <a href="/api/export" className="bg-white/10 border border-white/20 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-white/20 transition inline-flex items-center">📊 Exportera till MYH</a>
+          </div>
         </div>
 
-        {/* Statistikkort */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Totalt studenter', value: counts.total,   color: 'text-white',        bg: 'bg-white/5' },
-            { label: 'Har LIA-plats',    value: counts.matchad, color: 'text-green-400',    bg: 'bg-green-400/5' },
-            { label: 'Söker fortfarande',value: counts.soker,   color: 'text-yellow-400',   bg: 'bg-yellow-400/5' },
-            { label: 'Avtal signerade',  value: counts.avtal,   color: 'text-blue-400',     bg: 'bg-blue-400/5' },
+            { label: 'Totalt studenter', value: counts.total,   color: 'text-white',      bg: 'bg-white/5' },
+            { label: 'Har LIA-plats',    value: counts.matchad, color: 'text-green-400',  bg: 'bg-green-400/5' },
+            { label: 'Söker fortfarande',value: counts.soker,   color: 'text-yellow-400', bg: 'bg-yellow-400/5' },
+            { label: 'Avtal signerade',  value: counts.avtal,   color: 'text-blue-400',   bg: 'bg-blue-400/5' },
           ].map((stat, i) => (
             <div key={i} className={`${stat.bg} border border-white/10 rounded-2xl p-6`}>
               <div className={`text-3xl font-bold ${stat.color}`}>{stat.value}</div>
@@ -120,7 +119,6 @@ async function runMatching() {
           ))}
         </div>
 
-        {/* Filter */}
         <div className="flex gap-2 mb-6">
           {[
             { value: 'alla',    label: 'Alla' },
@@ -144,7 +142,6 @@ async function runMatching() {
           ))}
         </div>
 
-        {/* Studentlista */}
         {filtered.length === 0 ? (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
             <div className="text-4xl mb-4">🎓</div>
@@ -167,7 +164,7 @@ async function runMatching() {
               </thead>
               <tbody>
                 {filtered.map((student, i) => (
-                  <tr key={student.id} className={`border-b border-white/5 hover:bg-white/5 transition ${i % 2 === 0 ? '' : 'bg-white/2'}`}>
+                  <tr key={student.id} className="border-b border-white/5 hover:bg-white/5 transition">
                     <td className="px-6 py-4">
                       <div className="font-semibold text-sm">{student.profiles?.full_name}</div>
                       <div className="text-white/40 text-xs">{student.profiles?.email}</div>
