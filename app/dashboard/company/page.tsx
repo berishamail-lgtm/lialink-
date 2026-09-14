@@ -2,11 +2,13 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
+import Sidebar from '../../components/Sidebar'
 
 export default function CompanyDashboard() {
   const [profile, setProfile]   = useState<any>(null)
   const [company, setCompany]   = useState<any>(null)
   const [matches, setMatches]   = useState<any[]>([])
+  const [placed, setPlaced]     = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
   const supabase = createClient()
   const router   = useRouter()
@@ -17,26 +19,30 @@ export default function CompanyDashboard() {
       if (!user) { router.push('/login'); return }
 
       const { data: prof } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+        .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      const { data: comp } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-      setCompany(comp)
+      const { data: co } = await supabase
+        .from('companies').select('*').eq('user_id', user.id).single()
+      setCompany(co)
 
-      if (comp) {
+      if (co) {
         const { data: m } = await supabase
           .from('matches')
-          .select('*, students(*, profiles(full_name, email, city))')
-          .eq('company_id', comp.id)
+          .select(`
+            *,
+            placements(
+              id, status, actual_start, actual_end,
+              lia_periods(name, start_date, end_date, weeks, classes(name, educations(program_name, school_name)))
+            ),
+            students(user_id, program, bio, skills, profiles(full_name, city))
+          `)
+          .eq('company_id', co.id)
           .order('score', { ascending: false })
-        setMatches(m || [])
+
+        const alla = m || []
+        setMatches(alla.filter(x => ['söker', 'uppskjuten'].includes(x.placements?.status)))
+        setPlaced(alla.filter(x => ['avtal', 'aktiv', 'klar'].includes(x.placements?.status)))
       }
 
       setLoading(false)
@@ -44,121 +50,141 @@ export default function CompanyDashboard() {
     load()
   }, [])
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
   if (loading) return (
-    <div className="min-h-screen bg-[#0f0e0d] flex items-center justify-center">
-      <p className="text-white">Laddar…</p>
+    <div className="min-h-screen bg-paper flex items-center justify-center">
+      <p className="text-muted text-sm">Laddar</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#0f0e0d] text-white">
-      {/* Navbar */}
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
-        <div className="font-bold text-xl">
-          LIA<span className="text-[#e8420a]">link</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-white/40 text-sm">{company?.company_name}</span>
-          <button onClick={handleLogout} className="text-sm text-white/40 hover:text-white transition">
-            Logga ut
-          </button>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
+      <Sidebar role="company" name={profile?.full_name} subtitle={company?.company_name} />
 
-      <div className="max-w-4xl mx-auto px-8 py-10">
-        {/* Header */}
-        <div className="mb-8">
-          <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-2">Arbetsgivare</p>
-          <h1 className="text-3xl font-bold">Välkommen, {profile?.full_name} 👋</h1>
-          <p className="text-white/40 mt-1 text-sm">
-            {company ? `${company.company_name} · ${company.city}` : 'Fyll i företagsprofilen för att komma igång'}
-          </p>
-        </div>
+      <main className="flex-1 p-5 sm:p-8 max-w-3xl">
+        <h1 className="text-2xl sm:text-3xl mb-1">Kandidater</h1>
+        <p className="text-muted text-sm mb-7">
+          {company
+            ? 'Studenter som matchar det ni söker, er ort och er period.'
+            : 'Fyll i företagsprofilen så börjar vi matcha er mot studenter.'}
+        </p>
 
-        {/* Statistikkort */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          {[
-            { label: 'LIA-platser totalt',  value: company?.spots_total     || 0, color: 'text-white' },
-            { label: 'Lediga platser',       value: company?.spots_available || 0, color: 'text-green-400' },
-            { label: 'Matchade kandidater',  value: matches.length,               color: 'text-blue-400' },
-          ].map((stat, i) => (
-            <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6">
-              <div className={`text-3xl font-bold ${stat.color}`}>{stat.value}</div>
-              <div className="text-white/40 text-sm mt-1">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Profil saknas */}
-        {!company && (
-          <div className="bg-green-400/10 border border-green-400/20 rounded-2xl p-6 mb-6">
-            <h2 className="font-bold mb-1">Fyll i företagsprofilen</h2>
-            <p className="text-white/50 text-sm mb-4">
-              Du behöver fylla i er företagsprofil för att matchas med studenter.
+        {!company ? (
+          <div className="bg-accent/8 border border-accent/25 rounded-xl p-6">
+            <p className="mb-1">Företagsprofilen är inte ifylld</p>
+            <p className="text-muted text-sm mb-4">
+              Vi behöver veta er ort, era datum och vad ni söker för att kunna matcha er.
             </p>
             <button
               onClick={() => router.push('/dashboard/company/profil')}
-              className="bg-green-500 text-white px-6 py-2 rounded-full text-sm font-bold hover:opacity-80 transition"
+              className="bg-accent text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-85 transition"
             >
-              Fyll i profil →
+              Fyll i profilen
             </button>
           </div>
-        )}
-
-        {/* Kandidatlista */}
-        <div>
-          <h2 className="font-bold mb-4">
-            Matchade kandidater
-            <span className="ml-2 text-white/30 font-normal text-sm">({matches.length} st)</span>
-          </h2>
-
-          {matches.length === 0 ? (
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-10 text-center">
-              <div className="text-4xl mb-3">👥</div>
-              <h3 className="font-bold mb-1">Inga kandidater ännu</h3>
-              <p className="text-white/40 text-sm">
-                {company
-                  ? 'Matchningsalgoritmen kör automatiskt när studenter registrerar sig.'
-                  : 'Fyll i företagsprofilen först så kan vi matcha er med rätt studenter.'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {matches.map(match => (
-                <div key={match.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/8 transition">
-                  <div>
-                    <div className="font-semibold">
-                      {match.students?.profiles?.full_name}
-                    </div>
-                    <div className="text-white/40 text-sm mt-1">
-                      {match.students?.program} · {match.students?.profiles?.city}
-                    </div>
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {(match.students?.skills || []).map((skill: string) => (
-                        <span key={skill} className="bg-white/10 text-white/60 px-2 py-0.5 rounded text-xs">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-right ml-4">
-                    <div className="text-2xl font-bold text-green-400">{match.score}%</div>
-                    <div className="text-white/30 text-xs mb-2">matchning</div>
-                    <button className="bg-green-500 text-white px-4 py-1.5 rounded-full text-xs font-bold hover:opacity-80 transition">
-                      Kontakta →
-                    </button>
-                  </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3 mb-7">
+              {[
+                { n: company.spots_total     ?? 0, label: 'platser totalt' },
+                { n: company.spots_available ?? 0, label: 'lediga just nu' },
+                { n: matches.length,               label: 'kandidater att titta på' },
+              ].map((s, i) => (
+                <div key={i} className="bg-card border border-line rounded-xl p-5">
+                  <p className="font-display text-3xl font-extrabold">{s.n}</p>
+                  <p className="text-muted text-sm mt-1 leading-snug">{s.label}</p>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      </div>
+
+            {matches.length === 0 ? (
+              <div className="bg-card border border-line rounded-xl p-10 text-center">
+                <p className="mb-1">Inga kandidater just nu</p>
+                <p className="text-muted text-sm">
+                  Nya studenter matchas löpande. Stämmer er period och ort med de utbildningar
+                  ni vill ta emot från dyker de upp här.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 mb-8">
+                {matches.map(m => {
+                  const p     = m.placements
+                  const start = p?.actual_start || p?.lia_periods?.start_date
+                  const end   = p?.actual_end   || p?.lia_periods?.end_date
+                  const edu   = p?.lia_periods?.classes?.educations
+
+                  return (
+                    <article key={m.id} className="bg-card border border-line rounded-xl p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                        <div className="min-w-0">
+                          <h2 className="text-base">{m.students?.profiles?.full_name}</h2>
+                          <p className="text-muted text-sm mt-0.5">
+                            {edu?.program_name}
+                            {m.students?.profiles?.city ? `, ${m.students.profiles.city}` : ''}
+                          </p>
+                          <p className="text-muted text-sm">
+                            {p?.lia_periods?.name}, {start} till {end}
+                            {p?.lia_periods?.weeks ? `, ${p.lia_periods.weeks} veckor` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-display text-2xl font-extrabold text-ok">{m.score}%</p>
+                          <p className="text-muted text-xs">matchning</p>
+                        </div>
+                      </div>
+
+                      {m.students?.bio && (
+                        <p className="text-sm leading-relaxed mb-3">{m.students.bio}</p>
+                      )}
+
+                      {m.students?.skills?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                          {m.students.skills.map((s: string) => (
+                            <span key={s} className="bg-paper border border-line rounded-full px-2.5 py-1 text-xs text-muted">
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => router.push(`/dashboard/messages?to=${m.students?.user_id}&name=${encodeURIComponent(m.students?.profiles?.full_name || '')}`)}
+                        className="bg-text text-paper rounded-full px-5 py-2 text-sm font-medium hover:opacity-85 transition"
+                      >
+                        Kontakta
+                      </button>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+
+            {placed.length > 0 && (
+              <section>
+                <h2 className="text-lg mb-1">Studenter hos er</h2>
+                <p className="text-muted text-sm mb-4">
+                  Placeringar där avtal skapats eller LIA redan pågår.
+                </p>
+                <div className="bg-card border border-line rounded-xl divide-y divide-line">
+                  {placed.map(m => {
+                    const p = m.placements
+                    return (
+                      <div key={m.id} className="px-5 py-4 flex flex-wrap items-baseline justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">{m.students?.profiles?.full_name}</p>
+                          <p className="text-muted text-sm">
+                            {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
+                          </p>
+                        </div>
+                        <span className="text-muted text-sm">{p?.status}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </main>
     </div>
   )
 }
