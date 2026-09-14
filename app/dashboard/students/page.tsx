@@ -78,7 +78,7 @@ export default function StudentsPage() {
 
   return (
     <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
-      <Sidebar name={profile?.full_name} program={education?.program_name} />
+            <Sidebar role="education" name={profile?.full_name} subtitle={education?.program_name} />
 
       <main className="flex-1 p-5 sm:p-8 max-w-6xl">
         <h1 className="text-2xl sm:text-3xl mb-1">Studenter</h1>

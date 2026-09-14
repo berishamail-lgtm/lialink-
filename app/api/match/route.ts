@@ -6,106 +6,105 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function calcPeriodOverlap(
-  sStart: string, sEnd: string,
-  cStart: string, cEnd: string
-): number {
-  if (!sStart || !sEnd || !cStart || !cEnd) return 0
-  const ss = new Date(sStart).getTime()
-  const se = new Date(sEnd).getTime()
-  const cs = new Date(cStart).getTime()
-  const ce = new Date(cEnd).getTime()
-  const overlapStart = Math.max(ss, cs)
-  const overlapEnd   = Math.min(se, ce)
-  if (overlapEnd <= overlapStart) return 0
-  const overlap    = overlapEnd - overlapStart
-  const studentLen = se - ss
-  return Math.round((overlap / studentLen) * 25)
+function overlapScore(aStart: string, aEnd: string, bStart: string, bEnd: string): number {
+  if (!aStart || !aEnd || !bStart || !bEnd) return 0
+  const as = new Date(aStart).getTime(), ae = new Date(aEnd).getTime()
+  const bs = new Date(bStart).getTime(), be = new Date(bEnd).getTime()
+  const start = Math.max(as, bs), end = Math.min(ae, be)
+  if (end <= start) return 0
+  return Math.round(((end - start) / (ae - as)) * 25)
 }
 
-function calcSkills(
-  studentSkills: string[],
-  lookingFor: string
-): number {
-  if (!studentSkills?.length || !lookingFor) return 0
-  const looking = lookingFor.toLowerCase()
-  const matches = studentSkills.filter(s =>
-    looking.includes(s.toLowerCase())
-  ).length
-  return Math.min(30, Math.round((matches / studentSkills.length) * 30))
+function skillScore(skills: string[], lookingFor: string): number {
+  if (!skills?.length || !lookingFor) return 0
+  const text = lookingFor.toLowerCase()
+  const hits = skills.filter(s => text.includes(s.toLowerCase())).length
+  return Math.min(30, Math.round((hits / skills.length) * 30))
 }
 
 export async function POST() {
-  const { data: students, error: se } = await supabase
-    .from('students')
-    .select('*, profiles(city)')
+  // Placeringar som fortfarande söker
+  const { data: placements, error: pe } = await supabase
+    .from('placements')
+    .select(`
+      id, status, actual_start, actual_end,
+      lia_periods(start_date, end_date),
+      students(id, skills, program, profiles(city))
+    `)
+    .in('status', ['söker', 'uppskjuten'])
 
   const { data: companies, error: ce } = await supabase
     .from('companies')
     .select('*')
+    .gt('spots_available', 0)
 
-  if (se || ce) {
-    return NextResponse.json({ message: 'Databasfel: ' + (se?.message || ce?.message) })
+  if (pe || ce) {
+    return NextResponse.json({ message: 'Databasfel: ' + (pe?.message || ce?.message) })
   }
 
-  if (!students?.length || !companies?.length) {
-    return NextResponse.json({ 
-      message: `Ingen data – studenter: ${students?.length || 0}, företag: ${companies?.length || 0}` 
-    })
+  if (!placements?.length) {
+    return NextResponse.json({ message: 'Inga studenter söker LIA-plats just nu.' })
   }
 
-  let created = 0
+  if (!companies?.length) {
+    return NextResponse.json({ message: 'Inga företag med lediga platser att matcha mot.' })
+  }
 
-  for (const student of students) {
-    for (const company of companies) {
-      const { data: existing } = await supabase
+  let skapade = 0
+
+  for (const pl of placements as any[]) {
+    const student = pl.students
+    if (!student) continue
+
+    // Faktiska datum går före klassens planerade
+    const start = pl.actual_start || pl.lia_periods?.start_date
+    const end   = pl.actual_end   || pl.lia_periods?.end_date
+
+    const studentCity = student.profiles?.city?.toLowerCase() || ''
+
+    for (const co of companies) {
+      const { data: finns } = await supabase
         .from('matches')
         .select('id')
-        .eq('student_id', student.id)
-        .eq('company_id', company.id)
-        .single()
+        .eq('placement_id', pl.id)
+        .eq('company_id', co.id)
+        .maybeSingle()
 
-      if (existing) continue
+      if (finns) continue
 
-      const studentCity = student.profiles?.city?.toLowerCase() || ''
-      const companyCity = company.city?.toLowerCase() || ''
-
+      const companyCity = co.city?.toLowerCase() || ''
       const scoreCity = studentCity && companyCity
-        ? studentCity === companyCity ? 30 : 10
+        ? (studentCity === companyCity ? 30 : 8)
         : 0
 
-      const scoreSkills = calcSkills(student.skills || [], company.looking_for || '')
+      const scoreSkills = skillScore(student.skills || [], co.looking_for || '')
+      const scorePeriod = overlapScore(start, end, co.lia_period_start, co.lia_period_end)
 
-      const scorePeriod = calcPeriodOverlap(
-        student.lia_period_start, student.lia_period_end,
-        company.lia_period_start, company.lia_period_end
-      )
-
-      const scoreSector = student.program && company.sector
-        ? company.sector.toLowerCase().includes(
-            student.program.split(' ')[0].toLowerCase()
-          ) ? 15 : 0
+      const scoreSector = student.program && co.sector
+        ? (co.sector.toLowerCase().includes(student.program.split(' ')[0].toLowerCase()) ? 15 : 0)
         : 0
 
       const score = scoreCity + scoreSkills + scorePeriod + scoreSector
+      if (score < 20) continue
 
-      if (score > 0) {
-        await supabase.from('matches').insert({
-          student_id:   student.id,
-          company_id:   company.id,
-          score,
-          score_city:   scoreCity,
-          score_skills: scoreSkills,
-          score_period: scorePeriod,
-          score_sector: scoreSector,
-          status:       'föreslagen'
-        })
-        created++
-      }
+      await supabase.from('matches').insert({
+        placement_id: pl.id,
+        student_id:   student.id,
+        company_id:   co.id,
+        score,
+        score_city:   scoreCity,
+        score_skills: scoreSkills,
+        score_period: scorePeriod,
+        score_sector: scoreSector,
+        status:       'föreslagen',
+      })
+      skapade++
     }
   }
 
   return NextResponse.json({
-    message: `Matchning klar – ${created} nya matchningar skapade`
+    message: skapade === 0
+      ? 'Inga nya matchningar. Alla möjliga träffar finns redan.'
+      : `${skapade} ${skapade === 1 ? 'ny matchning' : 'nya matchningar'} skapade.`
   })
 }

@@ -2,19 +2,23 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
+import Sidebar from '../../../components/Sidebar'
 
 export default function StudentProfil() {
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState(false)
-  const [success, setSuccess]   = useState(false)
-  const [userId, setUserId]     = useState('')
-  const [program, setProgram]   = useState('')
-  const [school, setSchool]     = useState('')
-  const [bio, setBio]           = useState('')
-  const [city, setCity]         = useState('')
-  const [skills, setSkills]     = useState('')
-  const [periodStart, setPeriodStart] = useState('')
-  const [periodEnd, setPeriodEnd]     = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [saved, setSaved]     = useState(false)
+  const [userId, setUserId]   = useState('')
+  const [profile, setProfile] = useState<any>(null)
+
+  const [program, setProgram] = useState('')
+  const [school, setSchool]   = useState('')
+  const [city, setCity]       = useState('')
+  const [bio, setBio]         = useState('')
+  const [skills, setSkills]   = useState('')
+  const [start, setStart]     = useState('')
+  const [end, setEnd]         = useState('')
+
   const supabase = createClient()
   const router   = useRouter()
 
@@ -25,189 +29,139 @@ export default function StudentProfil() {
       setUserId(user.id)
 
       const { data: prof } = await supabase
-        .from('profiles')
-        .select('city')
-        .eq('id', user.id)
-        .single()
+        .from('profiles').select('*').eq('id', user.id).single()
+      setProfile(prof)
       if (prof?.city) setCity(prof.city)
 
-      const { data: stud } = await supabase
-        .from('students')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
+      const { data: s } = await supabase
+        .from('students').select('*').eq('user_id', user.id).single()
 
-      if (stud) {
-        setProgram(stud.program || '')
-        setSchool(stud.school || '')
-        setBio(stud.bio || '')
-        setSkills((stud.skills || []).join(', '))
-        setPeriodStart(stud.lia_period_start || '')
-        setPeriodEnd(stud.lia_period_end || '')
+      if (s) {
+        setProgram(s.program || '')
+        setSchool(s.school || '')
+        setBio(s.bio || '')
+        setSkills((s.skills || []).join(', '))
+        setStart(s.lia_period_start || '')
+        setEnd(s.lia_period_end || '')
       }
-
       setLoading(false)
     }
     load()
   }, [])
 
-  async function handleSave(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
 
     const skillsArray = skills.split(',').map(s => s.trim()).filter(Boolean)
-
     await supabase.from('profiles').update({ city }).eq('id', userId)
 
+    const payload = {
+      program, school, bio,
+      skills: skillsArray,
+      lia_period_start: start || null,
+      lia_period_end:   end   || null,
+    }
+
     const { data: existing } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', userId)
-      .single()
+      .from('students').select('id').eq('user_id', userId).single()
 
     if (existing) {
-      await supabase.from('students').update({
-        program, school, bio,
-        skills: skillsArray,
-        lia_period_start: periodStart || null,
-        lia_period_end:   periodEnd   || null,
-      }).eq('user_id', userId)
+      await supabase.from('students').update(payload).eq('user_id', userId)
     } else {
-      await supabase.from('students').insert({
-        user_id: userId,
-        program, school, bio,
-        skills: skillsArray,
-        lia_period_start: periodStart || null,
-        lia_period_end:   periodEnd   || null,
-        status: 'söker'
-      })
+      await supabase.from('students').insert({ ...payload, user_id: userId, status: 'söker' })
     }
 
     setSaving(false)
-    setSuccess(true)
-    setTimeout(() => {
-      router.push('/dashboard/student')
-    }, 1500)
+    setSaved(true)
+    setTimeout(() => router.push('/dashboard/student'), 900)
   }
 
+  const field = 'w-full bg-card border border-line rounded-lg px-4 py-2.5 text-sm outline-none focus:border-text/40 transition'
+
   if (loading) return (
-    <div className="min-h-screen bg-[#0f0e0d] flex items-center justify-center">
-      <p className="text-white">Laddar…</p>
+    <div className="min-h-screen bg-paper flex items-center justify-center">
+      <p className="text-muted text-sm">Laddar</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#0f0e0d] text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
-        <div className="font-bold text-xl">
-          LIA<span className="text-[#e8420a]">link</span>
-        </div>
-        <button
-          onClick={() => router.push('/dashboard/student')}
-          className="text-sm text-white/40 hover:text-white transition"
-        >
-          ← Tillbaka
-        </button>
-      </nav>
+    <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
+      <Sidebar role="student" name={profile?.full_name} subtitle={program} />
 
-      <div className="max-w-2xl mx-auto px-8 py-10">
-        <div className="mb-8">
-          <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2">Student</p>
-          <h1 className="text-3xl font-bold">Din profil</h1>
-          <p className="text-white/40 mt-1 text-sm">Fyll i din information så kan vi matcha dig med rätt företag.</p>
-        </div>
+      <main className="flex-1 p-5 sm:p-8 max-w-2xl">
+        <h1 className="text-2xl sm:text-3xl mb-1">Min profil</h1>
+        <p className="text-muted text-sm mb-7">
+          Det du fyller i här styr vilka företag du matchas med. Ort och LIA-period väger tyngst.
+        </p>
 
-        <form onSubmit={handleSave} className="space-y-5">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-            <h2 className="font-bold text-sm uppercase tracking-wider text-white/40">Grundinfo</h2>
+        <form onSubmit={save} className="space-y-5">
+          <section className="bg-card border border-line rounded-xl p-6 space-y-4">
+            <h2 className="text-base">Utbildning</h2>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Utbildningsprogram</label>
-              <input
-                value={program}
-                onChange={e => setProgram(e.target.value)}
-                placeholder="t.ex. Digital Marknadsföring"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white placeholder-white/20"
-              />
+              <label className="block text-sm mb-1.5">Program</label>
+              <input value={program} onChange={e => setProgram(e.target.value)} placeholder="Automationstekniker" className={field} />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Skola</label>
-              <input
-                value={school}
-                onChange={e => setSchool(e.target.value)}
-                placeholder="t.ex. Lernia Yrkeshögskola"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white placeholder-white/20"
-              />
+              <label className="block text-sm mb-1.5">Skola</label>
+              <input value={school} onChange={e => setSchool(e.target.value)} placeholder="Lernia Yrkeshögskola" className={field} />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Stad</label>
-              <input
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                placeholder="t.ex. Malmö"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white placeholder-white/20"
-              />
+              <label className="block text-sm mb-1.5">Ort</label>
+              <input value={city} onChange={e => setCity(e.target.value)} placeholder="Malmö" className={field} />
+              <p className="text-muted text-xs mt-1.5">Företag på samma ort rankas högst i matchningen.</p>
             </div>
+          </section>
 
-            <div>
-              <label className="block text-sm font-semibold mb-1">Om mig</label>
-              <textarea
-                value={bio}
-                onChange={e => setBio(e.target.value)}
-                placeholder="Berätta kort om dig själv och vad du söker i en LIA-plats…"
-                rows={4}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white placeholder-white/20 resize-none"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-            <h2 className="font-bold text-sm uppercase tracking-wider text-white/40">LIA-info</h2>
-
-            <div>
-              <label className="block text-sm font-semibold mb-1">Kompetenser</label>
-              <input
-                value={skills}
-                onChange={e => setSkills(e.target.value)}
-                placeholder="t.ex. Excel, Python, Projektledning (separera med komma)"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white placeholder-white/20"
-              />
-              <p className="text-white/30 text-xs mt-1">Separera med komma</p>
-            </div>
+          <section className="bg-card border border-line rounded-xl p-6 space-y-4">
+            <h2 className="text-base">LIA-period</h2>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-1">LIA-start</label>
-                <input
-                  type="date"
-                  value={periodStart}
-                  onChange={e => setPeriodStart(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white"
-                />
+                <label className="block text-sm mb-1.5">Startar</label>
+                <input type="date" value={start} onChange={e => setStart(e.target.value)} className={field} />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1">LIA-slut</label>
-                <input
-                  type="date"
-                  value={periodEnd}
-                  onChange={e => setPeriodEnd(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-white/30 text-white"
-                />
+                <label className="block text-sm mb-1.5">Slutar</label>
+                <input type="date" value={end} onChange={e => setEnd(e.target.value)} className={field} />
               </div>
             </div>
-          </div>
+          </section>
+
+          <section className="bg-card border border-line rounded-xl p-6 space-y-4">
+            <h2 className="text-base">Om dig</h2>
+
+            <div>
+              <label className="block text-sm mb-1.5">Kompetenser</label>
+              <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="PLC, Excel, felsökning" className={field} />
+              <p className="text-muted text-xs mt-1.5">Separera med kommatecken.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1.5">Presentation</label>
+              <textarea
+                value={bio}
+                onChange={e => setBio(e.target.value)}
+                rows={4}
+                placeholder="Vad vill du lära dig under din LIA?"
+                className={`${field} resize-y`}
+              />
+              <p className="text-muted text-xs mt-1.5">Företag läser detta innan de kontaktar dig.</p>
+            </div>
+          </section>
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-white text-[#0f0e0d] rounded-full py-4 font-bold text-sm hover:opacity-80 transition disabled:opacity-50"
+            className="w-full bg-text text-paper rounded-full py-3.5 text-sm font-medium hover:opacity-85 transition disabled:opacity-40"
           >
-            {saving ? 'Sparar…' : success ? '✓ Sparat!' : 'Spara profil →'}
+            {saving ? 'Sparar' : saved ? 'Sparat' : 'Spara profil'}
           </button>
         </form>
-      </div>
+      </main>
     </div>
   )
 }

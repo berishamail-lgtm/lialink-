@@ -2,32 +2,12 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
-import Sidebar from '../../components/Sidebar'
 
-const filters = [
-  { value: 'alla',    label: 'Alla' },
-  { value: 'söker',   label: 'Söker' },
-  { value: 'matchad', label: 'Matchad' },
-  { value: 'avtal',   label: 'Avtal' },
-  { value: 'aktiv',   label: 'Pågår' },
-  { value: 'klar',    label: 'Klar' },
-]
-
-const statusStyle: Record<string, string> = {
-  'söker':   'bg-alert/10 text-alert',
-  'matchad': 'bg-warn/10 text-warn',
-  'avtal':   'bg-[#2563eb]/10 text-[#2563eb]',
-  'aktiv':   'bg-ok/10 text-ok',
-  'klar':    'bg-text/8 text-text',
-}
-
-export default function StudentsPage() {
-  const [profile, setProfile]     = useState<any>(null)
-  const [education, setEducation] = useState<any>(null)
-  const [students, setStudents]   = useState<any[]>([])
-  const [filter, setFilter]       = useState('alla')
-  const [search, setSearch]       = useState('')
-  const [loading, setLoading]     = useState(true)
+export default function StudentDashboard() {
+  const [profile, setProfile]   = useState<any>(null)
+  const [student, setStudent]   = useState<any>(null)
+  const [matches, setMatches]   = useState<any[]>([])
+  const [loading, setLoading]   = useState(true)
   const supabase = createClient()
   const router   = useRouter()
 
@@ -37,180 +17,163 @@ export default function StudentsPage() {
       if (!user) { router.push('/login'); return }
 
       const { data: prof } = await supabase
-        .from('profiles').select('*').eq('id', user.id).single()
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
       setProfile(prof)
 
-      const { data: edu } = await supabase
-        .from('educations').select('*').eq('user_id', user.id).single()
-      setEducation(edu)
-
-      const { data: studs } = await supabase
+      const { data: stud } = await supabase
         .from('students')
-        .select('*, profiles(full_name, email, city)')
-        .order('created_at', { ascending: false })
-      setStudents(studs || [])
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+      setStudent(stud)
+
+      if (stud) {
+        const { data: m } = await supabase
+          .from('matches')
+          .select('*, companies(user_id, company_name, sector, city, description)')
+          .eq('student_id', stud.id)
+          .order('score', { ascending: false })
+        setMatches(m || [])
+      }
 
       setLoading(false)
     }
     load()
   }, [])
 
-  function weeksUntil(dateStr: string | null): number | null {
-    if (!dateStr) return null
-    return Math.round((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 7))
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push('/login')
   }
 
-  const visible = students
-    .filter(s => filter === 'alla' || s.status === filter)
-    .filter(s => {
-      if (!search.trim()) return true
-      const q = search.toLowerCase()
-      return (s.profiles?.full_name || '').toLowerCase().includes(q)
-          || (s.profiles?.email || '').toLowerCase().includes(q)
-          || (s.program || '').toLowerCase().includes(q)
-    })
+  const steps = [
+    { label: 'Skapa profil',    done: !!student },
+    { label: 'Få matchningar',  done: matches.length > 0 },
+    { label: 'Signera avtal',   done: student?.status === 'avtal' || student?.status === 'aktiv' || student?.status === 'klar' },
+    { label: 'Starta LIA',      done: student?.status === 'aktiv' || student?.status === 'klar' },
+  ]
 
   if (loading) return (
-    <div className="min-h-screen bg-paper flex items-center justify-center">
-      <p className="text-muted text-sm">Laddar</p>
+    <div className="min-h-screen bg-[#0f0e0d] flex items-center justify-center">
+      <p className="text-white">Laddar…</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
-      <Sidebar name={profile?.full_name} program={education?.program_name} />
+    <div className="min-h-screen bg-[#0f0e0d] text-white">
+      {/* Navbar */}
+      <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
+        <div className="font-bold text-xl">
+          LIA<span className="text-[#e8420a]">link</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-white/40 text-sm">{profile?.email}</span>
+          <button onClick={handleLogout} className="text-sm text-white/40 hover:text-white transition">
+            Logga ut
+          </button>
+        </div>
+      </nav>
 
-      <main className="flex-1 p-5 sm:p-8 max-w-6xl">
-        <h1 className="text-2xl sm:text-3xl mb-1">Studenter</h1>
-        <p className="text-muted text-sm mb-7">
-          {students.length} {students.length === 1 ? 'student' : 'studenter'} anslutna
-        </p>
+      <div className="max-w-4xl mx-auto px-8 py-10">
+        {/* Header */}
+        <div className="mb-8">
+          <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2">Student</p>
+          <h1 className="text-3xl font-bold">Välkommen, {profile?.full_name} 👋</h1>
+          <p className="text-white/40 mt-1 text-sm">
+            {student ? `${student.program} · ${profile?.city || ''}` : 'Fyll i din profil för att komma igång'}
+          </p>
+        </div>
 
-        <div className="flex flex-wrap gap-3 items-center mb-5">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Sök namn, e-post eller program"
-            className="bg-card border border-line rounded-lg px-4 py-2.5 text-sm w-full sm:w-72 outline-none focus:border-text/40 transition"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {filters.map(f => {
-              const n = f.value === 'alla'
-                ? students.length
-                : students.filter(s => s.status === f.value).length
-              return (
-                <button
-                  key={f.value}
-                  onClick={() => setFilter(f.value)}
-                  className={`px-3.5 py-2 rounded-full text-sm transition ${
-                    filter === f.value
-                      ? 'bg-text text-paper'
-                      : 'bg-card border border-line text-muted hover:border-text/30'
-                  }`}
-                >
-                  {f.label} {n > 0 && <span className="opacity-50">{n}</span>}
-                </button>
-              )
-            })}
+        {/* LIA-process steg */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
+          <h2 className="font-bold mb-4 text-sm uppercase tracking-wider text-white/40">Din LIA-process</h2>
+          <div className="flex items-center gap-0">
+            {steps.map((step, i) => (
+              <div key={i} className="flex items-center flex-1">
+                <div className="flex flex-col items-center flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mb-2 ${
+                    step.done ? 'bg-green-400 text-black' : 'bg-white/10 text-white/40'
+                  }`}>
+                    {step.done ? '✓' : i + 1}
+                  </div>
+                  <span className="text-xs text-white/50 text-center">{step.label}</span>
+                </div>
+                {i < steps.length - 1 && (
+                  <div className={`h-px flex-1 mb-6 ${steps[i+1].done ? 'bg-green-400' : 'bg-white/10'}`} />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        {visible.length === 0 ? (
-          <div className="bg-card border border-line rounded-xl p-12 text-center">
-            <p className="mb-1">
-              {students.length === 0 ? 'Inga studenter än' : 'Inga träffar'}
-            </p>
-            <p className="text-muted text-sm">
-              {students.length === 0
-                ? 'Studenter syns här så fort de skapat sin profil.'
-                : 'Prova ett annat filter eller en annan sökning.'}
-            </p>
+        {/* Profil saknas */}
+        {!student && (
+          <div className="bg-blue-400/10 border border-blue-400/20 rounded-2xl p-6 mb-6">
+            <h2 className="font-bold mb-1">Fyll i din studentprofil</h2>
+            <p className="text-white/50 text-sm mb-4">Du behöver fylla i din profil för att kunna matchas med företag.</p>
+            <button
+              onClick={() => router.push('/dashboard/student/profil')}
+              className="bg-blue-500 text-white px-6 py-2 rounded-full text-sm font-bold hover:opacity-80 transition"
+            >
+              Fyll i profil →
+            </button>
           </div>
-        ) : (
-          <>
-            <div className="hidden md:block bg-card border border-line rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-line">
-                    {['Student', 'Program', 'Ort', 'LIA-period', 'Status'].map(h => (
-                      <th key={h} className="text-left px-5 py-3.5 text-xs font-medium text-muted">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map(s => {
-                    const w = weeksUntil(s.lia_period_start)
-                    const urgent = s.status === 'söker' && w !== null && w <= 8
-                    return (
-                      <tr key={s.id} className="border-b border-line last:border-0 hover:bg-paper/60 transition">
-                        <td className="px-5 py-4">
-                          <p className="text-sm font-medium">{s.profiles?.full_name}</p>
-                          <p className="text-muted text-xs">{s.profiles?.email}</p>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-muted">{s.program || '—'}</td>
-                        <td className="px-5 py-4 text-sm text-muted">{s.profiles?.city || '—'}</td>
-                        <td className="px-5 py-4 text-sm text-muted">
-                          {s.lia_period_start ? (
-                            <>
-                              {s.lia_period_start} – {s.lia_period_end}
-                              {urgent && (
-                                <span className="block text-alert text-xs mt-0.5">
-                                  {w} {w === 1 ? 'vecka' : 'veckor'} kvar, ingen plats
-                                </span>
-                              )}
-                            </>
-                          ) : '—'}
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[s.status] || ''}`}>
-                            {s.status}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="md:hidden space-y-2.5">
-              {visible.map(s => {
-                const w = weeksUntil(s.lia_period_start)
-                const urgent = s.status === 'söker' && w !== null && w <= 8
-                return (
-                  <div key={s.id} className="bg-card border border-line rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{s.profiles?.full_name}</p>
-                        <p className="text-muted text-xs truncate">{s.profiles?.email}</p>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${statusStyle[s.status] || ''}`}>
-                        {s.status}
-                      </span>
-                    </div>
-                    <p className="text-muted text-xs">
-                      {s.program || 'Program saknas'}
-                      {s.profiles?.city ? `, ${s.profiles.city}` : ''}
-                    </p>
-                    {s.lia_period_start && (
-                      <p className="text-muted text-xs mt-1">
-                        {s.lia_period_start} – {s.lia_period_end}
-                      </p>
-                    )}
-                    {urgent && (
-                      <p className="text-alert text-xs mt-2">
-                        {w} {w === 1 ? 'vecka' : 'veckor'} kvar, ingen plats
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </>
         )}
-      </main>
+
+        {/* Matchningar */}
+        <div className="mb-6">
+          <h2 className="font-bold mb-4">
+            Dina matchningar
+            <span className="ml-2 text-white/30 font-normal text-sm">({matches.length} st)</span>
+          </h2>
+
+          {matches.length === 0 ? (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-10 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <h3 className="font-bold mb-1">Inga matchningar ännu</h3>
+              <p className="text-white/40 text-sm">
+                {student
+                  ? 'Matchningsalgoritmen körs när företag registrerar sig. Du får ett mail när du har en matchning.'
+                  : 'Fyll i din profil först så kan vi matcha dig med rätt företag.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {matches.map(match => (
+                <div key={match.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/8 transition">
+                  <div>
+                    <div className="font-semibold">{match.companies?.company_name}</div>
+                    <div className="text-white/40 text-sm mt-1">
+                      {match.companies?.sector} · {match.companies?.city}
+                    </div>
+                    <div className="text-white/30 text-xs mt-1">{match.companies?.description}</div>
+                  </div>
+                  <div className="text-right ml-4">
+                    <div className="text-2xl font-bold text-green-400">{match.score}%</div>
+                    <div className="text-white/30 text-xs">matchning</div>
+                    <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold ${
+                      match.status === 'intresserad' ? 'bg-green-400/15 text-green-400' :
+                      match.status === 'avvisad'     ? 'bg-red-400/15 text-red-400' :
+                      'bg-white/10 text-white/50'
+                    }`}>
+                      {match.status}
+                    </span>
+                    <button
+  onClick={() => router.push('/dashboard/messages?to=' + match.companies?.user_id + '&name=' + match.companies?.company_name)}
+  className="mt-2 bg-white text-[#0f0e0d] px-3 py-1.5 rounded-full text-xs font-bold hover:opacity-80 transition block w-full text-center"
+>
+  Kontakta →
+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

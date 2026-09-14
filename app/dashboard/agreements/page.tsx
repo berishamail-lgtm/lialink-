@@ -2,16 +2,18 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
+import Sidebar from '../../components/Sidebar'
 
 export default function AgreementsPage() {
-  const [user, setUser]         = useState<any>(null)
-  const [profile, setProfile]   = useState<any>(null)
+  const [user, setUser]             = useState<any>(null)
+  const [profile, setProfile]       = useState<any>(null)
+  const [orgName, setOrgName]       = useState('')
   const [agreements, setAgreements] = useState<any[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [creating, setCreating] = useState(false)
+  const [confirmed, setConfirmed]   = useState<Record<string, boolean>>({})
+  const [signing, setSigning]       = useState('')
+  const [loading, setLoading]       = useState(true)
   const supabase = createClient()
   const router   = useRouter()
-  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     async function load() {
@@ -20,228 +22,196 @@ export default function AgreementsPage() {
       setUser(user)
 
       const { data: prof } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+        .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      await loadAgreements(user.id, prof?.role)
+      if (prof?.role === 'education') {
+        const { data } = await supabase
+          .from('educations').select('program_name').eq('user_id', user.id).single()
+        setOrgName(data?.program_name || '')
+      } else if (prof?.role === 'company') {
+        const { data } = await supabase
+          .from('companies').select('company_name').eq('user_id', user.id).single()
+        setOrgName(data?.company_name || '')
+      } else {
+        const { data } = await supabase
+          .from('students').select('program').eq('user_id', user.id).single()
+        setOrgName(data?.program || '')
+      }
+
+      await loadAgreements()
       setLoading(false)
     }
     load()
   }, [])
 
-  async function loadAgreements(userId: string, role: string) {
-    let query = supabase
+  async function loadAgreements() {
+    const { data } = await supabase
       .from('agreements')
       .select(`
         *,
-        students(*, profiles(full_name, email)),
+        students(program, profiles(full_name, email)),
         companies(company_name, city),
         educations(school_name, program_name)
       `)
       .order('created_at', { ascending: false })
-
-    const { data } = await query
     setAgreements(data || [])
   }
 
-  async function signAgreement(agreementId: string, role: string) {
+  async function sign(agreementId: string) {
+    setSigning(agreementId)
     const res = await fetch('/api/signera', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agreementId, role, userId: user.id }),
+      body: JSON.stringify({ agreementId, role: profile?.role, userId: user.id }),
     })
     const data = await res.json()
+    setSigning('')
 
     if (!res.ok) {
-      alert('Kunde inte signera: ' + (data.error || 'okänt fel'))
+      alert('Signeringen gick inte igenom: ' + (data.error || 'okänt fel'))
       return
     }
 
     setConfirmed({})
-    await loadAgreements(user.id, role)
-    alert(data.allSigned
-      ? '✓ Avtalet är nu signerat av alla parter! PDF skickas till alla.'
-      : '✓ Du har signerat avtalet!')
-  
+    await loadAgreements()
   }
 
-  function hasSignedAlready(agreement: any, role: string): boolean {
-    if (role === 'student')   return !!agreement.student_signed_at
-    if (role === 'company')   return !!agreement.company_signed_at
-    if (role === 'education') return !!agreement.education_signed_at
-    return false
-  }
-
-  function statusLabel(agreement: any) {
-    if (agreement.all_signed) return { text: 'Komplett', color: 'text-green-400', bg: 'bg-green-400/15' }
-    if (agreement.status === 'avbrutet') return { text: 'Avbrutet', color: 'text-red-400', bg: 'bg-red-400/15' }
-    const signed = [
-      agreement.student_signed_at,
-      agreement.company_signed_at,
-      agreement.education_signed_at
-    ].filter(Boolean).length
-    return { text: `${signed}/3 signerat`, color: 'text-yellow-400', bg: 'bg-yellow-400/15' }
+  function mySignature(a: any) {
+    if (profile?.role === 'student')   return a.student_signed_at
+    if (profile?.role === 'company')   return a.company_signed_at
+    if (profile?.role === 'education') return a.education_signed_at
+    return null
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-[#0f0e0d] flex items-center justify-center">
-      <p className="text-white">Laddar…</p>
+    <div className="min-h-screen bg-paper flex items-center justify-center">
+      <p className="text-muted text-sm">Laddar</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#0f0e0d] text-white">
-      <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
-        <div className="font-bold text-xl">
-          LIA<span className="text-[#e8420a]">link</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.push(`/dashboard/${profile?.role === 'education' ? 'education' : profile?.role === 'company' ? 'company' : 'student'}`)}
-            className="text-sm text-white/40 hover:text-white transition"
-          >
-            ← Dashboard
-          </button>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
+      <Sidebar role={profile?.role} name={profile?.full_name} subtitle={orgName} />
 
-      <div className="max-w-4xl mx-auto px-8 py-10">
-        <div className="mb-8 flex items-center justify-between">
+      <main className="flex-1 p-5 sm:p-8 max-w-4xl">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-7">
           <div>
-            <p className="text-[#e8420a] text-xs font-bold uppercase tracking-widest mb-2">
-              LIA-Avtal
-            </p>
-            <h1 className="text-3xl font-bold">Avtal & signeringar</h1>
-            <p className="text-white/40 mt-1 text-sm">
-              Alla tre parter måste signera för att avtalet ska gälla.
+            <h1 className="text-2xl sm:text-3xl mb-1">Avtal</h1>
+            <p className="text-muted text-sm">
+              Ett LIA-avtal gäller när student, företag och utbildning alla signerat.
             </p>
           </div>
-
-          {/* Bara UL kan skapa avtal */}
           {profile?.role === 'education' && (
             <button
               onClick={() => router.push('/dashboard/agreements/skapa')}
-              className="bg-[#e8420a] text-white px-6 py-3 rounded-full font-bold text-sm hover:opacity-80 transition"
+              className="bg-accent text-white px-5 py-2.5 rounded-full text-sm font-medium hover:opacity-85 transition"
             >
-              + Skapa avtal
+              Skapa avtal
             </button>
           )}
         </div>
 
         {agreements.length === 0 ? (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
-            <div className="text-4xl mb-4">📄</div>
-            <h2 className="text-lg font-bold mb-2">Inga avtal ännu</h2>
-            <p className="text-white/40 text-sm">
+          <div className="bg-card border border-line rounded-xl p-12 text-center">
+            <p className="mb-1">Inga avtal än</p>
+            <p className="text-muted text-sm">
               {profile?.role === 'education'
-                ? 'Skapa ett avtal när en student och ett företag är överens.'
-                : 'Din utbildningsledare skapar avtalet när allt är klart.'}
+                ? 'Skapa ett avtal när en student och ett företag kommit överens.'
+                : 'Utbildningsledaren skapar avtalet när platsen är klar.'}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {agreements.map(agreement => {
-              const status = statusLabel(agreement)
-              const signed = hasSignedAlready(agreement, profile?.role)
+            {agreements.map(a => {
+              const signed  = mySignature(a)
+              const parties = [
+                { label: 'Student',     name: a.students?.profiles?.full_name, at: a.student_signed_at },
+                { label: 'Företag',     name: a.companies?.company_name,       at: a.company_signed_at },
+                { label: 'Utbildning',  name: a.educations?.school_name,       at: a.education_signed_at },
+              ]
+              const done = parties.filter(p => p.at).length
+
               return (
-                <div key={agreement.id} className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-bold text-lg">
-                        {agreement.students?.profiles?.full_name} ↔ {agreement.companies?.company_name}
-                      </h3>
-                      <p className="text-white/40 text-sm mt-1">
-                        {agreement.educations?.school_name} · {agreement.educations?.program_name}
-                      </p>
+                <article key={a.id} className="bg-card border border-line rounded-xl overflow-hidden">
+                  <div className="p-6 pb-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+                      <h2 className="text-lg">
+                        {a.students?.profiles?.full_name} hos {a.companies?.company_name}
+                      </h2>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${
+                        a.all_signed ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn'
+                      }`}>
+                        {a.all_signed ? 'Signerat' : `${done} av 3 har signerat`}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${status.bg} ${status.color}`}>
-                      {status.text}
-                    </span>
+                    <p className="text-muted text-sm">
+                      {a.educations?.program_name}, {a.educations?.school_name}
+                    </p>
+                    <p className="text-muted text-sm mt-3">
+                      LIA-period {a.lia_start} till {a.lia_end}
+                    </p>
                   </div>
 
-                  {/* Period */}
-                  <div className="bg-white/5 rounded-xl p-4 mb-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-white/40">LIA-start</span>
-                        <div className="font-semibold mt-1">{agreement.lia_start}</div>
-                      </div>
-                      <div>
-                        <span className="text-white/40">LIA-slut</span>
-                        <div className="font-semibold mt-1">{agreement.lia_end}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Signeringsstatus */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[
-                      { label: 'Student', signed: agreement.student_signed_at, name: agreement.students?.profiles?.full_name },
-                      { label: 'Företag', signed: agreement.company_signed_at, name: agreement.companies?.company_name },
-                      { label: 'Utbildning', signed: agreement.education_signed_at, name: agreement.educations?.school_name },
-                    ].map((party, i) => (
-                      <div key={i} className={`rounded-xl p-3 text-center ${party.signed ? 'bg-green-400/10 border border-green-400/20' : 'bg-white/5 border border-white/10'}`}>
-                        <div className={`text-lg mb-1 ${party.signed ? 'text-green-400' : 'text-white/20'}`}>
-                          {party.signed ? '✓' : '○'}
-                        </div>
-                        <div className="text-xs font-bold">{party.label}</div>
-                        <div className="text-white/30 text-xs truncate">{party.name}</div>
-                        {party.signed && (
-                          <div className="text-green-400/60 text-xs mt-1">
-                            {new Date(party.signed).toLocaleDateString('sv-SE')}
-                          </div>
+                  <div className="grid grid-cols-3 border-t border-line divide-x divide-line">
+                    {parties.map(p => (
+                      <div key={p.label} className="px-4 py-4">
+                        <p className={`text-sm font-medium mb-0.5 ${p.at ? 'text-ok' : 'text-muted'}`}>
+                          {p.at ? 'Signerat' : 'Väntar'}
+                        </p>
+                        <p className="text-xs text-muted truncate">{p.name}</p>
+                        {p.at && (
+                          <p className="text-xs text-muted/70 mt-0.5">
+                            {new Date(p.at).toLocaleDateString('sv-SE')}
+                          </p>
                         )}
                       </div>
                     ))}
                   </div>
 
-                  {/* Signera-knapp */}
-                  {!agreement.all_signed && !signed && (
-                    <div>
-                      <label className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4 mb-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!confirmed[agreement.id]}
-                          onChange={e => setConfirmed({ ...confirmed, [agreement.id]: e.target.checked })}
-                          className="mt-0.5 w-4 h-4 accent-[#e8420a]"
-                        />
-                        <span className="text-white/60 text-xs leading-relaxed">
-                          {profile?.role === 'company'
-                            ? `Jag intygar att jag är behörig att ingå detta avtal för ${agreement.companies?.company_name} och att uppgifterna ovan är korrekta.`
-                            : 'Jag har läst avtalet och intygar att uppgifterna ovan är korrekta.'}
-                        </span>
-                      </label>
+                  <div className="border-t border-line p-5 bg-paper/50">
+                    {a.all_signed ? (
                       <button
-                        onClick={() => signAgreement(agreement.id, profile?.role)}
-                        disabled={!confirmed[agreement.id]}
-                        className="w-full bg-white text-[#0f0e0d] rounded-full py-3 font-bold text-sm hover:opacity-80 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                        onClick={() => window.open(`/api/avtal-pdf?id=${a.id}`, '_blank')}
+                        className="w-full bg-text text-paper rounded-full py-3 text-sm font-medium hover:opacity-85 transition"
                       >
-                        ✍️ Signera avtal
+                        Ladda ner avtalet som PDF
                       </button>
-                    </div>
-                  )}
-                  {signed && !agreement.all_signed && (
-                    <p className="text-center text-white/30 text-sm py-2">
-                      ✓ Du har signerat – väntar på övriga parter
-                    </p>
-                  )}
-               {agreement.all_signed && (
-  <div>
-    <p className="text-center text-green-400 text-sm py-2 font-bold">
-      ✓ Alla parter har signerat – LIA är bekräftad!
-    </p>
-      <button onClick={() => window.open(`/api/avtal-pdf?id=${agreement.id}`, '_blank')} className="w-full bg-white text-[#0f0e0d] rounded-full py-3 font-bold text-sm hover:opacity-80 transition">📄 Ladda ner avtal som PDF</button>
-  </div>
-)}
-                </div>
+                    ) : signed ? (
+                      <p className="text-muted text-sm text-center">
+                        Du har signerat. Avtalet gäller när övriga parter gjort detsamma.
+                      </p>
+                    ) : (
+                      <>
+                        <label className="flex items-start gap-3 mb-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!confirmed[a.id]}
+                            onChange={e => setConfirmed({ ...confirmed, [a.id]: e.target.checked })}
+                            className="mt-0.5 w-4 h-4 accent-[#e8420a] shrink-0"
+                          />
+                          <span className="text-muted text-sm leading-relaxed">
+                            {profile?.role === 'company'
+                              ? `Jag är behörig att ingå detta avtal för ${a.companies?.company_name} och uppgifterna stämmer.`
+                              : 'Jag har läst avtalet och uppgifterna stämmer.'}
+                          </span>
+                        </label>
+                        <button
+                          onClick={() => sign(a.id)}
+                          disabled={!confirmed[a.id] || signing === a.id}
+                          className="w-full bg-text text-paper rounded-full py-3 text-sm font-medium hover:opacity-85 transition disabled:opacity-25 disabled:cursor-not-allowed"
+                        >
+                          {signing === a.id ? 'Signerar' : 'Signera avtalet'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </article>
               )
             })}
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }
