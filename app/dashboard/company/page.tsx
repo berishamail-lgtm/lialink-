@@ -169,13 +169,16 @@ export default function CompanyDashboard() {
                     const p = m.placements
                     return (
                       <div key={m.id} className="px-5 py-4 flex flex-wrap items-baseline justify-between gap-2">
-                        <div>
+                          <div>
                           <p className="text-sm font-medium">{m.students?.profiles?.full_name}</p>
                           <p className="text-muted text-sm">
                             {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
                           </p>
                         </div>
-                        <span className="text-muted text-sm">{p?.status}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-muted text-sm">{p?.status}</span>
+                          <button onClick={() => router.push('/dashboard/messages?to=' + m.students?.user_id + '&name=' + encodeURIComponent(m.students?.profiles?.full_name || ''))} className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition">Meddelande</button>
+                        </div>
                       </div>
                     )
                   })}

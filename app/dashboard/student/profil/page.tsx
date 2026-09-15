@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -8,16 +8,17 @@ export default function StudentProfil() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
+  const [error, setError]     = useState('')
   const [userId, setUserId]   = useState('')
   const [profile, setProfile] = useState<any>(null)
 
-  const [program, setProgram] = useState('')
-  const [school, setSchool]   = useState('')
-  const [city, setCity]       = useState('')
-  const [bio, setBio]         = useState('')
-  const [skills, setSkills]   = useState('')
-  const [start, setStart]     = useState('')
-  const [end, setEnd]         = useState('')
+  const [kod, setKod]             = useState('')
+  const [klass, setKlass]         = useState<any>(null)
+  const [kodStatus, setKodStatus] = useState('')
+
+  const [city, setCity]     = useState('')
+  const [bio, setBio]       = useState('')
+  const [skills, setSkills] = useState('')
 
   const supabase = createClient()
   const router   = useRouter()
@@ -37,39 +38,77 @@ export default function StudentProfil() {
         .from('students').select('*').eq('user_id', user.id).single()
 
       if (s) {
-        setProgram(s.program || '')
-        setSchool(s.school || '')
         setBio(s.bio || '')
         setSkills((s.skills || []).join(', '))
-        setStart(s.lia_period_start || '')
-        setEnd(s.lia_period_end || '')
+        if (s.class_id) {
+          const { data: c } = await supabase
+            .from('classes')
+            .select('*, educations(program_name, school_name)')
+            .eq('id', s.class_id).single()
+          if (c) { setKlass(c); setKod(c.yh_kod) }
+        }
       }
       setLoading(false)
     }
     load()
   }, [])
 
+  async function checkKod() {
+    const varde = kod.trim()
+    if (!varde) return
+    setKodStatus('söker')
+
+    const { data } = await supabase
+      .from('classes')
+      .select('*, educations(program_name, school_name)')
+      .eq('yh_kod', varde)
+      .maybeSingle()
+
+    if (data) { setKlass(data); setKodStatus('hittad') }
+    else      { setKlass(null); setKodStatus('saknas') }
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault()
+    if (!klass) { setError('Ange din YH-kod och kontrollera den först.'); return }
+
     setSaving(true)
+    setError('')
 
     const skillsArray = skills.split(',').map(s => s.trim()).filter(Boolean)
     await supabase.from('profiles').update({ city }).eq('id', userId)
 
     const payload = {
-      program, school, bio,
-      skills: skillsArray,
-      lia_period_start: start || null,
-      lia_period_end:   end   || null,
+      class_id: klass.id,
+      program:  klass.educations?.program_name || '',
+      school:   klass.educations?.school_name  || '',
+      bio,
+      skills:   skillsArray,
     }
 
     const { data: existing } = await supabase
-      .from('students').select('id').eq('user_id', userId).single()
+      .from('students').select('id').eq('user_id', userId).maybeSingle()
+
+    let studentId = existing?.id
 
     if (existing) {
       await supabase.from('students').update(payload).eq('user_id', userId)
     } else {
-      await supabase.from('students').insert({ ...payload, user_id: userId, status: 'söker' })
+      const { data: created } = await supabase
+        .from('students').insert({ ...payload, user_id: userId, status: 'sÃ¶ker' })
+        .select('id').single()
+      studentId = created?.id
+    }
+
+    if (studentId) {
+      const { data: perioder } = await supabase
+        .from('lia_periods').select('id').eq('class_id', klass.id)
+
+      for (const p of perioder || []) {
+        await supabase.from('placements')
+          .insert({ student_id: studentId, lia_period_id: p.id, status: 'sÃ¶ker' })
+          .select()
+      }
     }
 
     setSaving(false)
@@ -87,52 +126,53 @@ export default function StudentProfil() {
 
   return (
     <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
-      <Sidebar role="student" name={profile?.full_name} subtitle={program} />
+      <Sidebar role="student" name={profile?.full_name} subtitle={klass?.name} />
 
       <main className="flex-1 p-5 sm:p-8 max-w-2xl">
         <h1 className="text-2xl sm:text-3xl mb-1">Min profil</h1>
         <p className="text-muted text-sm mb-7">
-          Det du fyller i här styr vilka företag du matchas med. Ort och LIA-period väger tyngst.
+          Din ort och dina kompetenser styr vilka företag du matchas med.
         </p>
+
+        {error && (
+          <p className="bg-alert/10 border border-alert/25 text-alert text-sm rounded-lg px-4 py-3 mb-5">{error}</p>
+        )}
 
         <form onSubmit={save} className="space-y-5">
           <section className="bg-card border border-line rounded-xl p-6 space-y-4">
-            <h2 className="text-base">Utbildning</h2>
+            <h2 className="text-base">Din utbildning</h2>
 
             <div>
-              <label className="block text-sm mb-1.5">Program</label>
-              <input value={program} onChange={e => setProgram(e.target.value)} placeholder="Automationstekniker" className={field} />
-            </div>
-
-            <div>
-              <label className="block text-sm mb-1.5">Skola</label>
-              <input value={school} onChange={e => setSchool(e.target.value)} placeholder="Lernia Yrkeshögskola" className={field} />
-            </div>
-
-            <div>
-              <label className="block text-sm mb-1.5">Ort</label>
-              <input value={city} onChange={e => setCity(e.target.value)} placeholder="Malmö" className={field} />
-              <p className="text-muted text-xs mt-1.5">Företag på samma ort rankas högst i matchningen.</p>
-            </div>
-          </section>
-
-          <section className="bg-card border border-line rounded-xl p-6 space-y-4">
-            <h2 className="text-base">LIA-period</h2>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm mb-1.5">Startar</label>
-                <input type="date" value={start} onChange={e => setStart(e.target.value)} className={field} />
+              <label className="block text-sm mb-1.5">YH-kod</label>
+              <div className="flex gap-2">
+                <input value={kod} onChange={e => { setKod(e.target.value); setKodStatus('') }} placeholder="YH01234-2025" className={field} />
+                <button type="button" onClick={checkKod} className="bg-text text-paper rounded-lg px-5 text-sm font-medium hover:opacity-85 transition shrink-0">Kontrollera</button>
               </div>
-              <div>
-                <label className="block text-sm mb-1.5">Slutar</label>
-                <input type="date" value={end} onChange={e => setEnd(e.target.value)} className={field} />
-              </div>
+              <p className="text-muted text-xs mt-1.5">Koden får du av din utbildningsledare vid kursstart.</p>
             </div>
+
+            {kodStatus === 'saknas' && (
+              <p className="bg-alert/10 border border-alert/25 text-alert text-sm rounded-lg px-4 py-3">
+                Ingen klass med den koden. Kontrollera stavningen med din utbildningsledare.
+              </p>
+            )}
+
+            {klass && (
+              <div className="bg-ok/8 border border-ok/25 rounded-lg px-4 py-3">
+                <p className="text-sm font-medium">{klass.educations?.program_name}</p>
+                <p className="text-muted text-sm">{klass.educations?.school_name}, klass {klass.name}</p>
+              </div>
+            )}
           </section>
 
           <section className="bg-card border border-line rounded-xl p-6 space-y-4">
             <h2 className="text-base">Om dig</h2>
+
+            <div>
+              <label className="block text-sm mb-1.5">Ort</label>
+              <input value={city} onChange={e => setCity(e.target.value)} required placeholder="Malmö" className={field} />
+              <p className="text-muted text-xs mt-1.5">Du läser på distans, så ange orten där du vill göra din LIA.</p>
+            </div>
 
             <div>
               <label className="block text-sm mb-1.5">Kompetenser</label>
@@ -142,22 +182,12 @@ export default function StudentProfil() {
 
             <div>
               <label className="block text-sm mb-1.5">Presentation</label>
-              <textarea
-                value={bio}
-                onChange={e => setBio(e.target.value)}
-                rows={4}
-                placeholder="Vad vill du lära dig under din LIA?"
-                className={`${field} resize-y`}
-              />
-              <p className="text-muted text-xs mt-1.5">Företag läser detta innan de kontaktar dig.</p>
+              <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="Vad vill du lära dig under din LIA?" className={field + ' resize-y'} />
+              <p className="text-muted text-xs mt-1.5">företag läser detta innan de hör av sig.</p>
             </div>
           </section>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-text text-paper rounded-full py-3.5 text-sm font-medium hover:opacity-85 transition disabled:opacity-40"
-          >
+          <button type="submit" disabled={saving || !klass} className="w-full bg-text text-paper rounded-full py-3.5 text-sm font-medium hover:opacity-85 transition disabled:opacity-30">
             {saving ? 'Sparar' : saved ? 'Sparat' : 'Spara profil'}
           </button>
         </form>
