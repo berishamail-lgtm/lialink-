@@ -19,6 +19,10 @@ export default function StudentProfil() {
   const [city, setCity]     = useState('')
   const [bio, setBio]       = useState('')
   const [skills, setSkills] = useState('')
+  const [studentId, setStudentId] = useState('')
+  const [cvPath, setCvPath]       = useState('')
+  const [pbPath, setPbPath]       = useState('')
+  const [laddar, setLaddar]       = useState('')
 
   const supabase = createClient()
   const router   = useRouter()
@@ -40,6 +44,9 @@ export default function StudentProfil() {
       if (s) {
         setBio(s.bio || '')
         setSkills((s.skills || []).join(', '))
+                setStudentId(s.id)
+        setCvPath(s.cv_path || '')
+        setPbPath(s.pb_path || '')
         if (s.class_id) {
           const { data: c } = await supabase
             .from('classes')
@@ -115,7 +122,44 @@ export default function StudentProfil() {
     setSaved(true)
     setTimeout(() => router.push('/dashboard/student'), 900)
   }
+  async function laddaUpp(e: React.ChangeEvent<HTMLInputElement>, typ: 'cv' | 'pb') {
+    const fil = e.target.files?.[0]
+    if (!fil) return
 
+    if (fil.size > 5 * 1024 * 1024) {
+      setError('Filen får vara högst 5 MB.')
+      return
+    }
+
+    setLaddar(typ)
+    setError('')
+
+    const ext  = fil.name.split('.').pop()
+    const path = `${userId}/${typ}.${ext}`
+
+    const { error: upErr } = await supabase.storage
+      .from('dokument')
+      .upload(path, fil, { upsert: true })
+
+    if (upErr) { setError(upErr.message); setLaddar(''); return }
+
+    const kolumn = typ === 'cv'
+      ? { cv_path: path, cv_uppladdad: new Date().toISOString() }
+      : { pb_path: path, pb_uppladdad: new Date().toISOString() }
+
+    await supabase.from('students').update(kolumn).eq('user_id', userId)
+
+    if (typ === 'cv') setCvPath(path)
+    else              setPbPath(path)
+    setLaddar('')
+  }
+
+  async function oppna(path: string) {
+    const { data } = await supabase.storage
+      .from('dokument')
+      .createSignedUrl(path, 60)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
   const field = 'w-full bg-card border border-line rounded-lg px-4 py-2.5 text-sm outline-none focus:border-text/40 transition'
 
   if (loading) return (
@@ -186,7 +230,39 @@ export default function StudentProfil() {
               <p className="text-muted text-xs mt-1.5">företag läser detta innan de hör av sig.</p>
             </div>
           </section>
+          <section className="bg-card border border-line rounded-xl p-6 space-y-4">
+            <h2 className="text-base">Dina dokument</h2>
+            <p className="text-muted text-sm">
+              Företag du matchas med kan läsa dem. Ingen annan kommer åt dem.
+            </p>
 
+            {[
+              { typ: 'cv' as const, namn: 'CV',               path: cvPath },
+              { typ: 'pb' as const, namn: 'Personligt brev',  path: pbPath },
+            ].map(d => (
+              <div key={d.typ} className="flex flex-wrap items-center justify-between gap-3 border border-line rounded-lg px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{d.namn}</p>
+                  <p className="text-muted text-xs">
+                    {d.path ? 'Uppladdad' : 'Inte uppladdad än'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {d.path && (
+                    <button type="button" onClick={() => oppna(d.path)} className="text-muted hover:text-text text-sm transition">Öppna</button>
+                  )}
+                  <label className="bg-text text-paper rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer hover:opacity-85 transition">
+                    {laddar === d.typ ? 'Laddar upp' : d.path ? 'Byt fil' : 'Ladda upp'}
+                    <input type="file" accept=".pdf,.doc,.docx" onChange={e => laddaUpp(e, d.typ)} className="hidden" />
+                  </label>
+                </div>
+              </div>
+            ))}
+
+            <p className="text-muted text-xs">
+              PDF eller Word, högst 5 MB per fil.
+            </p>
+          </section>
           <button type="submit" disabled={saving || !klass} className="w-full bg-text text-paper rounded-full py-3.5 text-sm font-medium hover:opacity-85 transition disabled:opacity-30">
             {saving ? 'Sparar' : saved ? 'Sparat' : 'Spara profil'}
           </button>
