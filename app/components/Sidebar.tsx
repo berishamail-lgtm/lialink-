@@ -29,6 +29,7 @@ const menus: Record<string, { href: string; label: string }[]> = {
     { href: '/dashboard/company/profil', label: 'Företagsprofil' },
     { href: '/dashboard/agreements',     label: 'Avtal' },
     { href: '/dashboard/messages',       label: 'Meddelanden' },
+    { href: '/dashboard/company/handledare', label: 'Handledare' },
   ],
 }
 

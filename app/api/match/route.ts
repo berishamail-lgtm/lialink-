@@ -28,7 +28,7 @@ export async function POST() {
     .from('placements')
     .select(`
       id, status, actual_start, actual_end,
-      lia_periods(start_date, end_date),
+      lia_periods(start_date, end_date, classes(educations(id))),
       students(id, skills, program, profiles(city))
     `)
     .in('status', ['söker', 'uppskjuten'])
@@ -71,6 +71,17 @@ export async function POST() {
         .maybeSingle()
 
       if (finns) continue
+            // Respektera företagets val av utbildningar
+      if (co.open_to === 'valda') {
+        const eduId = pl.lia_periods?.classes?.educations?.id
+        const { data: tillaten } = await supabase
+          .from('company_educations')
+          .select('id')
+          .eq('company_id', co.id)
+          .eq('education_id', eduId)
+          .maybeSingle()
+        if (!tillaten) continue
+      }
 
       const companyCity = co.city?.toLowerCase() || ''
       const scoreCity = studentCity && companyCity
