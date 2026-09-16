@@ -17,12 +17,14 @@ const menus: Record<string, { href: string; label: string }[]> = {
     { href: '/dashboard/natverk',  label: 'Företagsnätverk' },
     { href: '/dashboard/agreements', label: 'Avtal' },
     { href: '/dashboard/messages',   label: 'Meddelanden' },
+    { href: '/dashboard/konto', label: 'Mitt konto' },
   ],
   student: [
     { href: '/dashboard/student',        label: 'Min LIA' },
     { href: '/dashboard/student/profil', label: 'Min profil' },
     { href: '/dashboard/agreements',     label: 'Avtal' },
     { href: '/dashboard/messages',       label: 'Meddelanden' },
+    { href: '/dashboard/konto', label: 'Mitt konto' },
   ],
   company: [
     { href: '/dashboard/company',        label: 'Kandidater' },
@@ -30,6 +32,7 @@ const menus: Record<string, { href: string; label: string }[]> = {
     { href: '/dashboard/agreements',     label: 'Avtal' },
     { href: '/dashboard/messages',       label: 'Meddelanden' },
     { href: '/dashboard/company/handledare', label: 'Handledare' },
+    { href: '/dashboard/konto', label: 'Mitt konto' },
   ],
 }
 
