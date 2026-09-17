@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
   const st  = a.students
 
   // Rubrik
-  text('AVTALSVILLKOR FÖR LÄRANDE I ARBETE', M, y, 15, bold, ink)
+  text('AVTALSVILLKOR FÃ–R LÃ„RANDE I ARBETE', M, y, 15, bold, ink)
   y -= 16
   text(
     [a.placements?.lia_periods?.name, a.placements?.lia_periods?.classes?.name, edu?.program_name]
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
   // Mottagaren
   heading('Mottagaren', 9.5)
   row([
-    { label: 'Företags-/org/myndighetsnamn', value: co?.company_name || '', w: CW * 0.46 },
+    { label: 'FÃ¶retags-/org/myndighetsnamn', value: co?.company_name || '', w: CW * 0.46 },
     { label: 'Org nummer', value: co?.org_number || '', w: CW * 0.27 },
     { label: 'Telefon',    value: co?.phone || '',      w: CW * 0.27 },
   ])
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
   // Utbildningsanordnaren
   heading(edu?.school_name || 'Utbildningsanordnaren', 9.5)
   row([
-    { label: 'Företagsnamn', value: edu?.school_name || '', w: CW * 0.46 },
+    { label: 'FÃ¶retagsnamn', value: edu?.school_name || '', w: CW * 0.46 },
     { label: 'Org nummer',   value: edu?.org_number || '',  w: CW * 0.27 },
     { label: 'Telefon',      value: edu?.phone || '',       w: CW * 0.27 },
   ])
@@ -150,8 +150,8 @@ export async function GET(req: NextRequest) {
   ])
   y -= 16
 
-  // Särskilda villkor
-  heading('Särskilda villkor och Övrigt', 9.5)
+  // SÃ¤rskilda villkor
+  heading('SÃ¤rskilda villkor och Ã–vrigt', 9.5)
   const sv  = wrap(a.sarskilda_villkor || '', CW - 12, 9)
   const svH = Math.max(30, sv.length * 12 + 14)
   box(M, y, CW, svH)
@@ -168,7 +168,7 @@ export async function GET(req: NextRequest) {
 
   newPageIfNeeded(150)
 
-  text('Detta avtal har upprättats i tre likalydande exemplar, varav utbildningsanordnaren,',
+  text('Detta avtal har upprÃ¤ttats i tre likalydande exemplar, varav utbildningsanordnaren,',
        M, y, 8.5, font, ink)
   y -= 11
   text('Mottagaren och den Studerande har tagit var sitt.', M, y, 8.5, font, ink)
@@ -201,7 +201,7 @@ export async function GET(req: NextRequest) {
     cy -= 46
 
     box(x, cy, colW, 34)
-    text('Namnförtydligande', x + 5, cy - 11, 7.5, ital, grey)
+    text('NamnfÃ¶rtydligande', x + 5, cy - 11, 7.5, ital, grey)
     text(p.name, x + 5, cy - 25, 9)
   })
 
@@ -239,3 +239,4 @@ export async function GET(req: NextRequest) {
     },
   })
 }
+

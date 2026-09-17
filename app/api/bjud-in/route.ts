@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
@@ -14,9 +14,9 @@ export async function POST(req: NextRequest) {
   const { data: co } = await supabase
     .from('companies').select('*').eq('id', companyId).single()
 
-  if (!co)                return NextResponse.json({ error: 'Företaget hittades inte' }, { status: 404 })
-  if (co.claimed)         return NextResponse.json({ error: 'Företaget har redan ett konto' }, { status: 400 })
-  if (!co.contact_email)  return NextResponse.json({ error: 'Ingen e-postadress på företaget' }, { status: 400 })
+  if (!co)                return NextResponse.json({ error: 'FÃ¶retaget hittades inte' }, { status: 404 })
+  if (co.claimed)         return NextResponse.json({ error: 'FÃ¶retaget har redan ett konto' }, { status: 400 })
+  if (!co.contact_email)  return NextResponse.json({ error: 'Ingen e-postadress pÃ¥ fÃ¶retaget' }, { status: 400 })
 
   const { data: edu } = await supabase
     .from('educations').select('*, profiles:user_id(full_name)')
@@ -40,19 +40,19 @@ export async function POST(req: NextRequest) {
       <div style="border:1px solid #e8e4de;border-top:none;border-radius:0 0 14px 14px;padding:30px">
         <p style="font-size:15px;line-height:1.7;margin:0 0 18px">Hej ${co.contact_name || ''},</p>
         <p style="font-size:15px;line-height:1.7;margin:0 0 18px">
-          ${ul} på ${edu?.school_name || 'skolan'} använder LIAlink för att koordinera
-          LIA-platser för ${edu?.program_name || 'utbildningen'}, och har lagt in
+          ${ul} pÃ¥ ${edu?.school_name || 'skolan'} anvÃ¤nder LIAlink fÃ¶r att koordinera
+          LIA-platser fÃ¶r ${edu?.program_name || 'utbildningen'}, och har lagt in
           ${co.company_name} bland sina samarbetspartners.
         </p>
         <p style="font-size:15px;line-height:1.7;margin:0 0 24px">
           Skapar ni ett konto ser ni studenter som passar er verksamhet, och kan
-          signera LIA-avtal direkt i stället för via mejl fram och tillbaka.
+          signera LIA-avtal direkt i stÃ¤llet fÃ¶r via mejl fram och tillbaka.
         </p>
         <a href="${url}" style="display:inline-block;background:#e8420a;color:#fff;text-decoration:none;padding:13px 26px;border-radius:100px;font-weight:bold;font-size:14px">
           Skapa konto
         </a>
         <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:24px 0 0">
-          Länken gäller i 30 dagar. Vill ni inte vara med behöver ni inte göra något.
+          LÃ¤nken gÃ¤ller i 30 dagar. Vill ni inte vara med behÃ¶ver ni inte gÃ¶ra nÃ¥got.
         </p>
       </div>
     </div>
@@ -60,9 +60,9 @@ export async function POST(req: NextRequest) {
 
   try {
     await resend.emails.send({
-      from: 'LIAlink <onboarding@resend.dev>',
+      from: 'LIAlink <noreply@lialink.se>',
       to: co.contact_email,
-      subject: `Inbjudan att ta emot LIA-studenter från ${edu?.school_name || 'skolan'}`,
+      subject: `Inbjudan att ta emot LIA-studenter frÃ¥n ${edu?.school_name || 'skolan'}`,
       html,
     })
   } catch (e: any) {

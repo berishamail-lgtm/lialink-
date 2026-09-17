@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
@@ -8,7 +8,7 @@ const supabase = createClient(
 )
 
 export async function GET() {
-  // Hämta all data
+  // HÃ¤mta all data
   const { data: students } = await supabase
     .from('students')
     .select('*, profiles(full_name, email, city)')
@@ -26,7 +26,7 @@ export async function GET() {
     .from('matches')
     .select('score')
 
-  // Blad 1: Studentöversikt
+  // Blad 1: StudentÃ¶versikt
   const studentRows = (students || []).map(s => ({
     'Namn':        s.profiles?.full_name || '',
     'E-post':      s.profiles?.email || '',
@@ -43,7 +43,7 @@ export async function GET() {
   const agreementRows = (agreements || []).map(a => ({
     'Student':        a.students?.profiles?.full_name || '',
     'Program':        a.students?.program || '',
-    'Företag':        a.companies?.company_name || '',
+    'FÃ¶retag':        a.companies?.company_name || '',
     'Org.nummer':     a.companies?.org_number || '',
     'Bransch':        a.companies?.sector || '',
     'Ort':            a.companies?.city || '',
@@ -51,11 +51,11 @@ export async function GET() {
     'LIA-slut':       a.lia_end || '',
     'Status':         a.all_signed ? 'Komplett' : a.status,
     'Student sign.':  a.student_signed_at   ? new Date(a.student_signed_at).toLocaleDateString('sv-SE')   : '',
-    'Företag sign.':  a.company_signed_at   ? new Date(a.company_signed_at).toLocaleDateString('sv-SE')   : '',
+    'FÃ¶retag sign.':  a.company_signed_at   ? new Date(a.company_signed_at).toLocaleDateString('sv-SE')   : '',
     'Utbildn. sign.': a.education_signed_at ? new Date(a.education_signed_at).toLocaleDateString('sv-SE') : '',
   }))
 
-  // Blad 3: Sammanfattning för MYH
+  // Blad 3: Sammanfattning fÃ¶r MYH
   const total       = students?.length || 0
   const medPlats    = (students || []).filter(s => ['matchad','avtal','aktiv','klar'].includes(s.status)).length
   const signerade   = (agreements || []).filter(a => a.all_signed).length
@@ -65,14 +65,14 @@ export async function GET() {
     : 0
 
   const summaryRows = [
-    { 'Nyckeltal': 'Totalt antal studenter',        'Värde': total },
-    { 'Nyckeltal': 'Studenter med LIA-plats',       'Värde': medPlats },
-    { 'Nyckeltal': 'Signerade avtal (alla parter)', 'Värde': signerade },
-    { 'Nyckeltal': 'Slutförda LIA-perioder',        'Värde': klara },
-    { 'Nyckeltal': 'Placeringsgrad (%)',            'Värde': total ? Math.round((medPlats / total) * 100) : 0 },
-    { 'Nyckeltal': 'Fullföljandegrad (%)',          'Värde': total ? Math.round((klara / total) * 100) : 0 },
-    { 'Nyckeltal': 'Genomsnittlig matchning (%)',   'Värde': snittMatch },
-    { 'Nyckeltal': 'Rapport genererad',             'Värde': new Date().toLocaleDateString('sv-SE') },
+    { 'Nyckeltal': 'Totalt antal studenter',        'VÃ¤rde': total },
+    { 'Nyckeltal': 'Studenter med LIA-plats',       'VÃ¤rde': medPlats },
+    { 'Nyckeltal': 'Signerade avtal (alla parter)', 'VÃ¤rde': signerade },
+    { 'Nyckeltal': 'SlutfÃ¶rda LIA-perioder',        'VÃ¤rde': klara },
+    { 'Nyckeltal': 'Placeringsgrad (%)',            'VÃ¤rde': total ? Math.round((medPlats / total) * 100) : 0 },
+    { 'Nyckeltal': 'FullfÃ¶ljandegrad (%)',          'VÃ¤rde': total ? Math.round((klara / total) * 100) : 0 },
+    { 'Nyckeltal': 'Genomsnittlig matchning (%)',   'VÃ¤rde': snittMatch },
+    { 'Nyckeltal': 'Rapport genererad',             'VÃ¤rde': new Date().toLocaleDateString('sv-SE') },
   ]
 
   // Bygg arbetsboken
