@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const { data: ev } = await supabase
     .from('evaluations').select('id, status').eq('token', token).maybeSingle()
 
-  if (!ev)                        return NextResponse.json({ error: 'Ogiltig lÃ¤nk' }, { status: 404 })
+  if (!ev)                        return NextResponse.json({ error: 'Ogiltig länk' }, { status: 404 })
   if (ev.status === 'besvarat')   return NextResponse.json({ error: 'Redan besvarad' }, { status: 409 })
 
   const { error } = await supabase

@@ -27,12 +27,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Avtalet hittades inte' }, { status: 404 })
   }
 
-  // HÃ¤mta PDF:en frÃ¥n vÃ¥r egen route
+  // Hämta PDF:en från vår egen route
   const pdfRes = await fetch(`${req.nextUrl.origin}/api/avtal-pdf?id=${agreementId}`)
   const pdfBuf = Buffer.from(await pdfRes.arrayBuffer())
 
   const studentName = a.students?.profiles?.full_name || 'Studenten'
-  const companyName = a.companies?.company_name || 'FÃ¶retaget'
+  const companyName = a.companies?.company_name || 'Företaget'
   const schoolName  = a.educations?.school_name || 'Utbildningen'
 
   const recipients = [
@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
         <div style="font-size:22px;font-weight:bold;color:#fff">LIA<span style="color:#e8420a">link</span></div>
       </div>
       <div style="border:1px solid #ddd9d3;border-top:none;border-radius:0 0 16px 16px;padding:32px">
-        <h1 style="font-size:20px;margin:0 0 16px">LIA-avtalet Ã¤r signerat</h1>
+        <h1 style="font-size:20px;margin:0 0 16px">LIA-avtalet är signerat</h1>
         <p style="color:#6b6560;font-size:14px;line-height:1.7;margin:0 0 20px">
-          Alla tre parter har nu signerat avtalet. Avtalet gÃ¤ller och en kopia
+          Alla tre parter har nu signerat avtalet. Avtalet gäller och en kopia
           finns bifogad som PDF.
         </p>
         <table style="width:100%;font-size:14px;border-collapse:collapse;margin-bottom:20px">
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
           <tr><td style="padding:8px 0;color:#6b6560">LIA-period</td><td style="padding:8px 0;font-weight:bold">${a.lia_start} â€“ ${a.lia_end}</td></tr>
         </table>
         <p style="color:#6b6560;font-size:12px;line-height:1.6;margin:0">
-          Spara detta mejl som kvitto pÃ¥ signeringen. Vid frÃ¥gor, kontakta din utbildningsledare.
+          Spara detta mejl som kvitto på signeringen. Vid frågor, kontakta din utbildningsledare.
         </p>
       </div>
       <p style="text-align:center;color:#aaa;font-size:11px;margin-top:16px">

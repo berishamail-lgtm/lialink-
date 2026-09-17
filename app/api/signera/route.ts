@@ -13,11 +13,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Uppgifter saknas' }, { status: 400 })
   }
 
-  // HÃ¤mta IP frÃ¥n request-headers
+  // Hämta IP från request-headers
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
     req.headers.get('x-real-ip') ||
-    'okÃ¤nd'
+    'okänd'
 
   const timeField = role === 'student' ? 'student_signed_at'
                   : role === 'company' ? 'company_signed_at'
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
                   : role === 'company' ? 'company_signed_ip'
                   : 'education_signed_ip'
 
-  // Kontrollera att anvÃ¤ndaren faktiskt Ã¤r part i avtalet
+  // Kontrollera att användaren faktiskt är part i avtalet
   const { data: agreement } = await supabase
     .from('agreements')
     .select('*, students(user_id), companies(user_id), educations(user_id)')
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
                 : agreement.educations?.user_id
 
   if (partyId !== userId) {
-    return NextResponse.json({ error: 'Du Ã¤r inte part i detta avtal' }, { status: 403 })
+    return NextResponse.json({ error: 'Du är inte part i detta avtal' }, { status: 403 })
   }
 
   const { error } = await supabase
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agreementId }),
-    }).catch(() => {}) // fel hÃ¤r ska inte blockera signeringen
+    }).catch(() => {}) // fel här ska inte blockera signeringen
   }
 
   return NextResponse.json({

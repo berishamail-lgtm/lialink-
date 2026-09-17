@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// AvgÃ¶r om kontot kan raderas helt eller mÃ¥ste anonymiseras
+// Avgör om kontot kan raderas helt eller måste anonymiseras
 async function bedomning(userId: string, role: string) {
   if (role === 'student') {
     const { data: s } = await supabase
@@ -52,7 +52,7 @@ async function bedomning(userId: string, role: string) {
   return { metod: klasser ? 'blockerad' : 'raderad', skal, educationId: e.id }
 }
 
-// Vad som hÃ¤nder, utan att gÃ¶ra det
+// Vad som händer, utan att göra det
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('userId')
   const role   = req.nextUrl.searchParams.get('role')
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   if (b.metod === 'blockerad') {
     return NextResponse.json(
-      { error: 'Kontot kan inte tas bort sÃ¥ lÃ¤nge det har aktiva klasser. Flytta Ã¶ver eller avsluta dem fÃ¶rst.' },
+      { error: 'Kontot kan inte tas bort så länge det har aktiva klasser. Flytta över eller avsluta dem först.' },
       { status: 409 }
     )
   }
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     }
 
     await supabase.from('profiles').update({
-      full_name: 'Borttagen anvÃ¤ndare',
+      full_name: 'Borttagen användare',
       email:     `borttagen-${userId.slice(0, 8)}@lialink.se`,
       phone:     null,
       city:      null,
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     reason: reason || null,
   })
 
-  // Auth-kontot bort i bÃ¥da fallen. Radering tar med profilen via cascade.
+  // Auth-kontot bort i båda fallen. Radering tar med profilen via cascade.
   await supabase.auth.admin.deleteUser(userId)
 
   return NextResponse.json({ ok: true, metod: b.metod })

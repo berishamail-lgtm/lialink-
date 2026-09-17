@@ -23,7 +23,7 @@ function skillScore(skills: string[], lookingFor: string): number {
 }
 
 export async function POST() {
-  // Placeringar som fortfarande sÃ¶ker
+  // Placeringar som fortfarande söker
   const { data: placements, error: pe } = await supabase
     .from('placements')
     .select(`
@@ -31,7 +31,7 @@ export async function POST() {
       lia_periods(start_date, end_date, classes(educations(id))),
       students(id, skills, program, profiles(city))
     `)
-    .in('status', ['sÃ¶ker', 'uppskjuten'])
+    .in('status', ['söker', 'uppskjuten'])
 
   const { data: companies, error: ce } = await supabase
     .from('companies')
@@ -43,11 +43,11 @@ export async function POST() {
   }
 
   if (!placements?.length) {
-    return NextResponse.json({ message: 'Inga studenter sÃ¶ker LIA-plats just nu.' })
+    return NextResponse.json({ message: 'Inga studenter söker LIA-plats just nu.' })
   }
 
   if (!companies?.length) {
-    return NextResponse.json({ message: 'Inga fÃ¶retag med lediga platser att matcha mot.' })
+    return NextResponse.json({ message: 'Inga företag med lediga platser att matcha mot.' })
   }
 
   let skapade = 0
@@ -56,7 +56,7 @@ export async function POST() {
     const student = pl.students
     if (!student) continue
 
-    // Faktiska datum gÃ¥r fÃ¶re klassens planerade
+    // Faktiska datum går före klassens planerade
     const start = pl.actual_start || pl.lia_periods?.start_date
     const end   = pl.actual_end   || pl.lia_periods?.end_date
 
@@ -71,7 +71,7 @@ export async function POST() {
         .maybeSingle()
 
       if (finns) continue
-            // Respektera fÃ¶retagets val av utbildningar
+            // Respektera företagets val av utbildningar
       if (co.open_to === 'valda') {
         const eduId = pl.lia_periods?.classes?.educations?.id
         const { data: tillaten } = await supabase
@@ -107,7 +107,7 @@ export async function POST() {
         score_skills: scoreSkills,
         score_period: scorePeriod,
         score_sector: scoreSector,
-        status:       'fÃ¶reslagen',
+        status:       'föreslagen',
       })
       skapade++
     }
@@ -115,7 +115,7 @@ export async function POST() {
 
   return NextResponse.json({
     message: skapade === 0
-      ? 'Inga nya matchningar. Alla mÃ¶jliga trÃ¤ffar finns redan.'
+      ? 'Inga nya matchningar. Alla möjliga träffar finns redan.'
       : `${skapade} ${skapade === 1 ? 'ny matchning' : 'nya matchningar'} skapade.`
   })
 }
