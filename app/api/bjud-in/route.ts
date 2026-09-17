@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       from: 'LIAlink <noreply@lialink.se>',
       to: co.contact_email,
       subject: `Inbjudan att ta emot LIA-studenter frÃ¥n ${edu?.school_name || 'skolan'}`,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
       html,
     })
   } catch (e: any) {
