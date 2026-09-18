@@ -18,6 +18,7 @@ const menus: Record<string, { href: string; label: string }[]> = {
     { href: '/dashboard/agreements', label: 'Avtal' },
     { href: '/dashboard/messages',   label: 'Meddelanden' },
     { href: '/dashboard/konto', label: 'Mitt konto' },
+    { href: '/dashboard/admin', label: 'Administration' },
   ],
   student: [
     { href: '/dashboard/student',        label: 'Min LIA' },
@@ -48,7 +49,7 @@ export default function Sidebar({ role = 'student', name, subtitle }: Props) {
   }
 
   return (
-    <aside className="w-full lg:w-56 lg:min-h-screen bg-ink text-white flex lg:flex-col shrink-0">
+        <aside className="w-full lg:w-56 lg:min-h-screen bg-ink text-white flex lg:flex-col shrink-0 max-w-full overflow-hidden">
       <div className="p-5 lg:pb-8">
         <Link href={items[0].href} className="font-display font-extrabold text-lg">
           LIA<span className="text-accent">link</span>
