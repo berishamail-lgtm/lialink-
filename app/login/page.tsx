@@ -30,10 +30,11 @@ export default function LoginPage() {
     // Hämta roll och skicka till rätt dashboard
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_admin')
       .eq('id', data.user.id)
       .single()
 
+    if (profile?.is_admin) { router.push('/dashboard/admin'); return }
     if (profile?.role === 'student')   router.push('/dashboard/student')
     if (profile?.role === 'company')   router.push('/dashboard/company')
     if (profile?.role === 'education') router.push('/dashboard/education')
