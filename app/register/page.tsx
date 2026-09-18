@@ -120,6 +120,12 @@ export default function RegisterPage() {
           </button>
         </form>
 
+        <p className="text-center text-xs text-gray-400 mt-5 leading-relaxed">
+          Genom att skapa ett konto godkänner du{' '}
+          <a href="/anvandarvillkor" className="underline">användarvillkoren</a> och{' '}
+          <a href="/integritetspolicy" className="underline">integritetspolicyn</a>.
+        </p>
+
         <p className="text-center text-sm text-gray-400 mt-6">
           Har du redan konto?{' '}
           <a href="/login" className="text-[#e8420a] font-semibold">

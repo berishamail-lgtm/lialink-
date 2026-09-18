@@ -90,7 +90,11 @@ export default function Home() {
           <span className="font-display font-bold text-white/60">
             LIA<span className="text-accent">link</span>
           </span>
-          <span>Pilotversion</span>
+                <div className="flex flex-wrap gap-5">
+            <Link href="/integritetspolicy" className="hover:text-white/60 transition">Integritetspolicy</Link>
+            <Link href="/anvandarvillkor" className="hover:text-white/60 transition">Användarvillkor</Link>
+            <span>Pilotversion</span>
+          </div>
         </div>
       </footer>
     </main>
