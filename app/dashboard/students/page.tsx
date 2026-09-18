@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
+import { useEdu } from '../../components/EduContext'
 
 const filters = [
   { value: 'alla',    label: 'Alla' },
@@ -30,8 +31,10 @@ export default function StudentsPage() {
   const [loading, setLoading]     = useState(true)
   const supabase = createClient()
   const router   = useRouter()
+  const { current } = useEdu()
 
   useEffect(() => {
+    if (!current) return
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
@@ -40,20 +43,27 @@ export default function StudentsPage() {
         .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      const { data: edu } = await supabase
-        .from('educations').select('*').eq('user_id', user.id).single()
-      setEducation(edu)
+      setEducation(current)
 
-      const { data: studs } = await supabase
-        .from('students')
-        .select('*, profiles(full_name, email, city)')
-        .order('created_at', { ascending: false })
-      setStudents(studs || [])
+      const { data: cls } = await supabase
+        .from('classes').select('id, name').eq('education_id', current.id)
+      const classIds = (cls || []).map(c => c.id)
+
+      if (classIds.length) {
+        const { data: studs } = await supabase
+          .from('students')
+          .select('*, classes(name), profiles(full_name, email, city)')
+          .in('class_id', classIds)
+          .order('created_at', { ascending: false })
+        setStudents(studs || [])
+      } else {
+        setStudents([])
+      }
 
       setLoading(false)
     }
     load()
-  }, [])
+  }, [current?.id])
 
   function weeksUntil(dateStr: string | null): number | null {
     if (!dateStr) return null

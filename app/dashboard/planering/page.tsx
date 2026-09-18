@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
+import { useEdu } from '../../components/EduContext'
 
 export default function PlaneringPage() {
   const [profile, setProfile]     = useState<any>(null)
@@ -26,8 +27,9 @@ export default function PlaneringPage() {
   const [error, setError]         = useState('')
   const supabase = createClient()
   const router   = useRouter()
+  const { current } = useEdu()
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (current) load() }, [current?.id])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -37,11 +39,10 @@ export default function PlaneringPage() {
       .from('profiles').select('*').eq('id', user.id).single()
     setProfile(prof)
 
-    const { data: edu } = await supabase
-      .from('educations').select('*').eq('user_id', user.id).single()
-    setEducation(edu)
+      const edu = current
+      setEducation(edu)
 
-    if (edu) {
+      if (edu) {
       const { data: cls } = await supabase
         .from('classes').select('*').eq('education_id', edu.id)
         .order('start_date', { ascending: false })

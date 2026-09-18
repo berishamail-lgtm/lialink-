@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
+import { useEdu } from '../../components/EduContext'
 
 export default function EducationDashboard() {
   const [profile, setProfile]     = useState<any>(null)
@@ -13,6 +14,7 @@ export default function EducationDashboard() {
   const [matching, setMatching]   = useState(false)
   const supabase = createClient()
   const router   = useRouter()
+  const { current } = useEdu()
 
   useEffect(() => {
     async function load() {
@@ -23,22 +25,45 @@ export default function EducationDashboard() {
         .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      const { data: edu } = await supabase
-        .from('educations').select('*').eq('user_id', user.id).single()
-      setEducation(edu)
+      setEducation(current)
 
-      const { data: studs } = await supabase
-        .from('students').select('*, profiles(full_name, email, city)')
-      setStudents(studs || [])
+      const { data: cls } = await supabase
+        .from('classes').select('id').eq('education_id', current.id)
+      const classIds = (cls || []).map(c => c.id)
 
-      const { data: agrs } = await supabase
-        .from('agreements').select('*, students(user_id), companies(company_name)')
-      setAgreements(agrs || [])
+      if (classIds.length) {
+        const { data: studs } = await supabase
+          .from('students')
+          .select('*, profiles(full_name, email, city)')
+          .in('class_id', classIds)
+        setStudents(studs || [])
+
+        const { data: per } = await supabase
+          .from('lia_periods').select('id').in('class_id', classIds)
+        const periodIds = (per || []).map(p => p.id)
+
+        if (periodIds.length) {
+          const { data: pl } = await supabase
+            .from('placements').select('id').in('lia_period_id', periodIds)
+          const plIds = (pl || []).map(p => p.id)
+
+          if (plIds.length) {
+            const { data: agrs } = await supabase
+              .from('agreements')
+              .select('*, students(user_id), companies(company_name)')
+              .in('placement_id', plIds)
+            setAgreements(agrs || [])
+          } else setAgreements([])
+        } else setAgreements([])
+      } else {
+        setStudents([])
+        setAgreements([])
+      }
 
       setLoading(false)
     }
     load()
-  }, [])
+  }, [current?.id])
 
   async function runMatching() {
     setMatching(true)
