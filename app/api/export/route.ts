@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
 const supabase = createClient(
@@ -7,103 +7,164 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function GET() {
-  // Hämta all data
-  const { data: students } = await supabase
-    .from('students')
-    .select('*, profiles(full_name, email, city)')
+export async function GET(req: NextRequest) {
+  const eduId = req.nextUrl.searchParams.get('edu')
+  if (!eduId) return NextResponse.json({ error: 'Utbildning saknas' }, { status: 400 })
 
-  const { data: agreements } = await supabase
-    .from('agreements')
-    .select(`
-      *,
-      students(program, profiles(full_name, email)),
-      companies(company_name, org_number, city, sector),
-      educations(school_name, program_name)
-    `)
+  const { data: edu } = await supabase
+    .from('educations').select('*').eq('id', eduId).single()
 
-  const { data: matches } = await supabase
-    .from('matches')
-    .select('score')
+  if (!edu) return NextResponse.json({ error: 'Utbildningen hittades inte' }, { status: 404 })
 
-  // Blad 1: Studentöversikt
-  const studentRows = (students || []).map(s => ({
-    'Namn':        s.profiles?.full_name || '',
-    'E-post':      s.profiles?.email || '',
-    'Program':     s.program || '',
-    'Skola':       s.school || '',
-    'Stad':        s.profiles?.city || '',
-    'LIA-start':   s.lia_period_start || '',
-    'LIA-slut':    s.lia_period_end || '',
-    'Status':      s.status || '',
-    'Kompetenser': (s.skills || []).join(', '),
-  }))
+  const { data: cls } = await supabase
+    .from('classes').select('*').eq('education_id', eduId)
+  const classIds = (cls || []).map(c => c.id)
 
-  // Blad 2: Avtal
-  const agreementRows = (agreements || []).map(a => ({
-    'Student':        a.students?.profiles?.full_name || '',
-    'Program':        a.students?.program || '',
-    'Företag':        a.companies?.company_name || '',
-    'Org.nummer':     a.companies?.org_number || '',
-    'Bransch':        a.companies?.sector || '',
-    'Ort':            a.companies?.city || '',
-    'LIA-start':      a.lia_start || '',
-    'LIA-slut':       a.lia_end || '',
-    'Status':         a.all_signed ? 'Komplett' : a.status,
-    'Student sign.':  a.student_signed_at   ? new Date(a.student_signed_at).toLocaleDateString('sv-SE')   : '',
-    'Företag sign.':  a.company_signed_at   ? new Date(a.company_signed_at).toLocaleDateString('sv-SE')   : '',
-    'Utbildn. sign.': a.education_signed_at ? new Date(a.education_signed_at).toLocaleDateString('sv-SE') : '',
-  }))
+  let students: any[] = [], placements: any[] = [], agreements: any[] = [], evaluations: any[] = []
 
-  // Blad 3: Sammanfattning för MYH
-  const total       = students?.length || 0
-  const medPlats    = (students || []).filter(s => ['matchad','avtal','aktiv','klar'].includes(s.status)).length
-  const signerade   = (agreements || []).filter(a => a.all_signed).length
-  const klara       = (students || []).filter(s => s.status === 'klar').length
-  const snittMatch  = matches?.length
-    ? Math.round(matches.reduce((sum, m) => sum + m.score, 0) / matches.length)
-    : 0
+  if (classIds.length) {
+    const { data: s } = await supabase
+      .from('students')
+      .select('*, classes(name, termin), profiles(full_name, email, city)')
+      .in('class_id', classIds)
+    students = s || []
 
-  const summaryRows = [
-    { 'Nyckeltal': 'Totalt antal studenter',        'Värde': total },
-    { 'Nyckeltal': 'Studenter med LIA-plats',       'Värde': medPlats },
-    { 'Nyckeltal': 'Signerade avtal (alla parter)', 'Värde': signerade },
-    { 'Nyckeltal': 'Slutförda LIA-perioder',        'Värde': klara },
-    { 'Nyckeltal': 'Placeringsgrad (%)',            'Värde': total ? Math.round((medPlats / total) * 100) : 0 },
-    { 'Nyckeltal': 'Fullföljandegrad (%)',          'Värde': total ? Math.round((klara / total) * 100) : 0 },
-    { 'Nyckeltal': 'Genomsnittlig matchning (%)',   'Värde': snittMatch },
-    { 'Nyckeltal': 'Rapport genererad',             'Värde': new Date().toLocaleDateString('sv-SE') },
+    const { data: per } = await supabase
+      .from('lia_periods').select('id').in('class_id', classIds)
+    const periodIds = (per || []).map(p => p.id)
+
+    if (periodIds.length) {
+      const { data: pl } = await supabase
+        .from('placements')
+        .select(`*,
+          lia_periods(name, sequence, start_date, end_date, weeks, classes(name, termin)),
+          students(profiles(full_name, email, city)),
+          companies(company_name, org_number, city, sector)`)
+        .in('lia_period_id', periodIds)
+      placements = pl || []
+
+      const plIds = placements.map(p => p.id)
+      if (plIds.length) {
+        const { data: a } = await supabase
+          .from('agreements').select('*').in('placement_id', plIds)
+        agreements = a || []
+
+        const { data: e } = await supabase
+          .from('evaluations').select('*').in('placement_id', plIds)
+        evaluations = e || []
+      }
+    }
+  }
+
+  // Blad 1: Sammanfattning
+  const medPlats  = placements.filter(p => ['matchad','avtal','aktiv','klar'].includes(p.status)).length
+  const klara     = placements.filter(p => p.status === 'klar').length
+  const signerade = agreements.filter(a => a.all_signed).length
+  const besvarade = evaluations.filter(e => e.status === 'besvarat').length
+
+  const summary = [
+    { 'Nyckeltal': 'Utbildning',                     'Värde': edu.program_name },
+    { 'Nyckeltal': 'Utbildningsanordnare',           'Värde': edu.school_name },
+    { 'Nyckeltal': 'Antal klasser',                  'Värde': classIds.length },
+    { 'Nyckeltal': 'Inskrivna studenter',            'Värde': students.length },
+    { 'Nyckeltal': 'LIA-perioder totalt',            'Värde': placements.length },
+    { 'Nyckeltal': 'Perioder med plats',             'Värde': medPlats },
+    { 'Nyckeltal': 'Slutförda perioder',             'Värde': klara },
+    { 'Nyckeltal': 'Avtal signerade av alla parter', 'Värde': signerade },
+    { 'Nyckeltal': 'Utvärderingar inkomna',          'Värde': besvarade },
+    { 'Nyckeltal': 'Placeringsgrad (%)',             'Värde': placements.length ? Math.round((medPlats / placements.length) * 100) : 0 },
+    { 'Nyckeltal': 'Fullföljandegrad (%)',           'Värde': placements.length ? Math.round((klara / placements.length) * 100) : 0 },
+    { 'Nyckeltal': 'Rapport genererad',              'Värde': new Date().toLocaleDateString('sv-SE') },
   ]
 
-  // Bygg arbetsboken
+  // Blad 2: Placeringar
+  const placRows = placements.map(p => ({
+    'Student':      p.students?.profiles?.full_name || '',
+    'E-post':       p.students?.profiles?.email || '',
+    'Ort':          p.students?.profiles?.city || '',
+    'Klass':        p.lia_periods?.classes?.name || '',
+    'Termin':       p.lia_periods?.classes?.termin || '',
+    'LIA-period':   p.lia_periods?.name || '',
+    'Startdatum':   p.actual_start || p.lia_periods?.start_date || '',
+    'Slutdatum':    p.actual_end   || p.lia_periods?.end_date || '',
+    'Veckor':       p.lia_periods?.weeks || '',
+    'Status':       p.status || '',
+    'Företag':      p.companies?.company_name || '',
+    'Org.nummer':   p.companies?.org_number || '',
+    'Företagsort':  p.companies?.city || '',
+    'Bransch':      p.companies?.sector || '',
+    'Källa':        p.source || '',
+  }))
+
+  // Blad 3: Avtal
+  const agrRows = agreements.map(a => {
+    const p = placements.find(x => x.id === a.placement_id)
+    return {
+      'Student':        p?.students?.profiles?.full_name || '',
+      'LIA-period':     p?.lia_periods?.name || '',
+      'Företag':        p?.companies?.company_name || '',
+      'Handledare':     a.handledare_name || '',
+      'Startdatum':     a.lia_start || '',
+      'Slutdatum':      a.lia_end || '',
+      'Status':         a.all_signed ? 'Komplett' : a.status,
+      'Student sign.':  a.student_signed_at   ? new Date(a.student_signed_at).toLocaleDateString('sv-SE')   : '',
+      'Företag sign.':  a.company_signed_at   ? new Date(a.company_signed_at).toLocaleDateString('sv-SE')   : '',
+      'Utbildn. sign.': a.education_signed_at ? new Date(a.education_signed_at).toLocaleDateString('sv-SE') : '',
+    }
+  })
+
+  // Blad 4: Utvärderingar
+  const evRows = evaluations.filter(e => e.status === 'besvarat').map(e => {
+    const p = placements.find(x => x.id === e.placement_id)
+    return {
+      'Student':          p?.students?.profiles?.full_name || '',
+      'LIA-period':       p?.lia_periods?.name || '',
+      'Företag':          p?.companies?.company_name || '',
+      'Handledare':       e.handledare_name || '',
+      'Besvarad':         e.answered_at ? new Date(e.answered_at).toLocaleDateString('sv-SE') : '',
+      'Handledarinsats':  e.q1_handledarinsats || '',
+      'Vår information':  e.q2_information || '',
+      'Initiativ':        e.q3_initiativ || '',
+      'Samarbete':        e.q4_samarbete || '',
+      'Planera':          e.q5_planera || '',
+      'Strukturera':      e.q6_strukturera || '',
+      'Analytisk':        e.q7_analytisk || '',
+      'Självständig':     e.q8_sjalvstandig || '',
+      'Skriftligt':       e.q9a_skriftligt || '',
+      'Muntligt':         e.q9b_muntligt || '',
+      'Lämplighet':       e.q10_lamplighet || '',
+      'Uppförande':       e.q11_uppforande || '',
+      'Redovisning':      e.q12_redovisning || '',
+      'Kommentar':        e.comment || '',
+    }
+  })
+
   const wb = XLSX.utils.book_new()
 
-  const wsSummary = XLSX.utils.json_to_sheet(summaryRows)
-  wsSummary['!cols'] = [{ wch: 32 }, { wch: 14 }]
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Sammanfattning')
+  const ws1 = XLSX.utils.json_to_sheet(summary)
+  ws1['!cols'] = [{ wch: 34 }, { wch: 28 }]
+  XLSX.utils.book_append_sheet(wb, ws1, 'Sammanfattning')
 
-  const wsStudents = XLSX.utils.json_to_sheet(studentRows)
-  wsStudents['!cols'] = [
-    { wch: 22 }, { wch: 28 }, { wch: 24 }, { wch: 22 }, { wch: 14 },
-    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }
-  ]
-  XLSX.utils.book_append_sheet(wb, wsStudents, 'Studenter')
+  const ws2 = XLSX.utils.json_to_sheet(placRows)
+  ws2['!cols'] = Array(15).fill({ wch: 18 })
+  XLSX.utils.book_append_sheet(wb, ws2, 'Placeringar')
 
-  const wsAgreements = XLSX.utils.json_to_sheet(agreementRows)
-  wsAgreements['!cols'] = [
-    { wch: 22 }, { wch: 24 }, { wch: 24 }, { wch: 14 }, { wch: 20 },
-    { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-    { wch: 14 }, { wch: 14 }, { wch: 14 }
-  ]
-  XLSX.utils.book_append_sheet(wb, wsAgreements, 'Avtal')
+  const ws3 = XLSX.utils.json_to_sheet(agrRows)
+  ws3['!cols'] = Array(10).fill({ wch: 18 })
+  XLSX.utils.book_append_sheet(wb, ws3, 'Avtal')
+
+  const ws4 = XLSX.utils.json_to_sheet(evRows)
+  ws4['!cols'] = Array(19).fill({ wch: 15 })
+  XLSX.utils.book_append_sheet(wb, ws4, 'Utvärderingar')
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
-  const filename = `LIAlink-MYH-${new Date().toISOString().slice(0, 10)}.xlsx`
+  const namn = edu.program_name.replace(/[^a-zA-ZåäöÅÄÖ0-9]/g, '-')
+  const filnamn = `LIAlink-${namn}-${new Date().toISOString().slice(0, 10)}.xlsx`
 
   return new NextResponse(buf, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Disposition': `attachment; filename="${filnamn}"`,
     },
   })
 }

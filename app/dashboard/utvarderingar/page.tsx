@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
+import { useEdu } from '../../components/EduContext'
 
 const skalavarde: Record<string, number> = {
   'mycket bra': 4, 'bra': 3, 'godkänt': 2, 'dåligt': 1,
@@ -35,8 +36,9 @@ export default function UtvarderingarPage() {
 
   const supabase = createClient()
   const router   = useRouter()
+  const { current } = useEdu()
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (current) load() }, [current?.id])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -46,8 +48,7 @@ export default function UtvarderingarPage() {
       .from('profiles').select('*').eq('id', user.id).single()
     setProfile(prof)
 
-    const { data: edu } = await supabase
-      .from('educations').select('*').eq('user_id', user.id).single()
+    const edu = current
     setEducation(edu)
 
     if (edu) {
