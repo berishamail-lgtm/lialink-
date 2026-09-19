@@ -17,6 +17,7 @@ export default function EducationDashboard() {
   const { current } = useEdu()
 
   useEffect(() => {
+    if (!current) return
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
