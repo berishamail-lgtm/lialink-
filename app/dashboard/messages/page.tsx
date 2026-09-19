@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
+import { useEdu } from '../../components/EduContext'
 
 export default function MessagesPage() {
   const [user, setUser]           = useState<any>(null)
@@ -16,6 +17,7 @@ export default function MessagesPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase  = createClient()
   const router    = useRouter()
+  const { current } = useEdu()
 
   useEffect(() => {
     async function load() {
@@ -28,11 +30,15 @@ export default function MessagesPage() {
       setProfile(prof)
 
       if (prof?.role === 'education') {
-        const { data } = await supabase.from('educations').select('program_name').eq('user_id', user.id).single()
-        setOrgName(data?.program_name || '')
+        setOrgName(current?.program_name || '')
       } else if (prof?.role === 'company') {
-        const { data } = await supabase.from('companies').select('company_name').eq('user_id', user.id).single()
+        const { data } = await supabase
+          .from('companies').select('company_name').eq('user_id', user.id).maybeSingle()
         setOrgName(data?.company_name || '')
+      } else {
+        const { data } = await supabase
+          .from('students').select('program').eq('user_id', user.id).maybeSingle()
+        setOrgName(data?.program || '')
       }
 
       await loadConversations(user.id)
@@ -44,6 +50,7 @@ export default function MessagesPage() {
         setActive({
           otherId: toId,
           otherName: toName,
+          beskrivning: params.get('om') || '',
           convId: [user.id, toId].sort().join('-'),
         })
       }
@@ -51,12 +58,61 @@ export default function MessagesPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [current?.id])
 
   useEffect(() => {
     if (!active || !user) return
     openConversation(active)
   }, [active?.convId])
+
+  // Ta reda på vem motparten är
+  async function beskrivMotpart(ids: string[]): Promise<Record<string, string>> {
+    const ut: Record<string, string> = {}
+    if (!ids.length) return ut
+
+    const { data: profs } = await supabase
+      .from('profiles').select('id, role').in('id', ids)
+
+    const studentIds = (profs || []).filter(p => p.role === 'student').map(p => p.id)
+    const foretagIds = (profs || []).filter(p => p.role === 'company').map(p => p.id)
+    const ulIds      = (profs || []).filter(p => p.role === 'education').map(p => p.id)
+
+    if (studentIds.length) {
+      const { data } = await supabase
+        .from('students').select('user_id, program, classes(name)').in('user_id', studentIds)
+      for (const s of data || []) {
+        const klass = (s as any).classes?.name
+        ut[s.user_id] = ['student', s.program, klass].filter(Boolean).join(', ')
+      }
+    }
+
+    if (foretagIds.length) {
+      const { data } = await supabase
+        .from('companies').select('user_id, company_name, city').in('user_id', foretagIds)
+      for (const c of data || []) {
+        ut[c.user_id] = ['handledare', c.company_name, c.city].filter(Boolean).join(', ')
+      }
+      const { data: medlem } = await supabase
+        .from('company_members')
+        .select('user_id, companies(company_name, city)')
+        .in('user_id', foretagIds)
+      for (const m of medlem || []) {
+        if (ut[m.user_id]) continue
+        const co = (m as any).companies
+        ut[m.user_id] = ['handledare', co?.company_name, co?.city].filter(Boolean).join(', ')
+      }
+    }
+
+    if (ulIds.length) {
+      const { data } = await supabase
+        .from('educations').select('user_id, program_name, school_name').in('user_id', ulIds)
+      for (const e of data || []) {
+        ut[e.user_id] = ['utbildningsledare', e.program_name].filter(Boolean).join(', ')
+      }
+    }
+
+    return ut
+  }
 
   async function loadConversations(userId: string) {
     const { data } = await supabase
@@ -75,13 +131,19 @@ export default function MessagesPage() {
           otherName: isMine ? m.to?.full_name : m.from?.full_name,
           convId:    m.conversation_id,
           preview:   m.body,
+          senast:    m.created_at,
           unread:    !m.is_read && !isMine ? 1 : 0,
         })
       } else if (!m.is_read && !isMine) {
         map.get(otherId).unread++
       }
     }
-    setConvs(Array.from(map.values()))
+
+    const lista = Array.from(map.values())
+    const beskr = await beskrivMotpart(lista.map(c => c.otherId))
+    for (const c of lista) c.beskrivning = beskr[c.otherId] || ''
+
+    setConvs(lista)
   }
 
   async function openConversation(conv: any) {
@@ -125,8 +187,19 @@ export default function MessagesPage() {
       to_user_id:      active.otherId,
       body,
       is_read:         false,
+      education_id:    profile?.role === 'education' ? current?.id : null,
     })
     await loadConversations(user.id)
+  }
+
+  function nardatum(iso: string) {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const idag = new Date()
+    const samma = d.toDateString() === idag.toDateString()
+    return samma
+      ? d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })
   }
 
   if (loading) return (
@@ -140,14 +213,15 @@ export default function MessagesPage() {
       <Sidebar role={profile?.role} name={profile?.full_name} subtitle={orgName} />
 
       <main className="flex-1 flex min-h-0 lg:h-screen">
-        <div className={`${active ? 'hidden md:flex' : 'flex'} w-full md:w-72 border-r border-line flex-col shrink-0`}>
+        <div className={`${active ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-line flex-col shrink-0`}>
           <div className="px-5 py-4 border-b border-line">
             <h1 className="text-lg">Meddelanden</h1>
           </div>
           <div className="flex-1 overflow-y-auto">
             {conversations.length === 0 ? (
               <p className="text-muted text-sm p-5 leading-relaxed">
-                Inga konversationer än. Studenter startar en genom att kontakta ett företag från sina matchningar.
+                Inga konversationer än. Du kan skriva till en student eller ett
+                företag från deras respektive sida.
               </p>
             ) : conversations.map(c => (
               <button
@@ -157,14 +231,20 @@ export default function MessagesPage() {
                   active?.otherId === c.otherId ? 'bg-card' : 'hover:bg-card/60'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2 mb-0.5">
+                <div className="flex items-baseline justify-between gap-2 mb-0.5">
                   <span className="text-sm font-medium truncate">{c.otherName}</span>
-                  {c.unread > 0 && (
-                    <span className="bg-accent text-white text-xs rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center shrink-0">
-                      {c.unread}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-muted text-xs">{nardatum(c.senast)}</span>
+                    {c.unread > 0 && (
+                      <span className="bg-accent text-white text-xs rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center">
+                        {c.unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {c.beskrivning && (
+                  <p className="text-muted text-xs mb-1 truncate">{c.beskrivning}</p>
+                )}
                 <p className="text-muted text-xs truncate">{c.preview}</p>
               </button>
             ))}
@@ -185,7 +265,12 @@ export default function MessagesPage() {
                 >
                   Tillbaka
                 </button>
-                <h2 className="text-base truncate">{active.otherName}</h2>
+                <div className="min-w-0">
+                  <h2 className="text-base truncate">{active.otherName}</h2>
+                  {active.beskrivning && (
+                    <p className="text-muted text-xs truncate">{active.beskrivning}</p>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-2 min-h-[40vh]">

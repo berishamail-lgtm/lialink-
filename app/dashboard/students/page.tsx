@@ -344,6 +344,12 @@ export default function StudentsPage() {
                       <td className="px-5 py-4">
                         <p className="text-sm font-medium">{s.profiles?.full_name}</p>
                         <p className="text-muted text-xs">{s.profiles?.city || 'Ort saknas'}</p>
+                                                <button
+                          onClick={() => router.push('/dashboard/messages?to=' + s.user_id + '&name=' + encodeURIComponent(s.profiles?.full_name || '') + '&om=' + encodeURIComponent('student, ' + (s.classes?.name || '')))}
+                          className="text-muted hover:text-text text-xs underline underline-offset-2 transition"
+                        >
+                          Skriv
+                        </button>
                       </td>
                       <td className="px-5 py-4 text-sm text-muted whitespace-nowrap">
                         {s.classes?.name || '—'}
