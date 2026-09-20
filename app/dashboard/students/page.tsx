@@ -151,7 +151,16 @@ export default function StudentsPage() {
     setPlacera(null)
     load()
   }
+  async function taBortStudent(s: any) {
+    const namn = s.profiles?.full_name || 'studenten'
+    if (!confirm(`Ta bort ${namn} från klassen? Placeringar och avtal försvinner också. Kontot finns kvar men är inte längre kopplat till din utbildning.`)) return
 
+    const { error: err } = await supabase.from('students').delete().eq('id', s.id)
+    if (err) { setError(err.message); return }
+
+    setKlart(`${namn} borttagen`)
+    load()
+  }
   function weeksUntil(d: string | null) {
     if (!d) return null
     return Math.round((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 7))
@@ -349,6 +358,12 @@ export default function StudentsPage() {
                           className="text-muted hover:text-text text-xs underline underline-offset-2 transition"
                         >
                           Skriv
+                        </button>
+                                                <button
+                          onClick={() => taBortStudent(s)}
+                          className="text-muted hover:text-alert text-xs underline underline-offset-2 transition ml-3"
+                        >
+                          Ta bort
                         </button>
                       </td>
                       <td className="px-5 py-4 text-sm text-muted whitespace-nowrap">
