@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id:      userId,
         class_id:     classId,
-        program:      klass.educations?.program_name || '',
-        school:       klass.educations?.school_name  || '',
+        program:      (klass.educations as any)?.program_name || '',
+        school:       (klass.educations as any)?.school_name  || '',
         status:       'söker',
         skapad_av_ul: true,
       })
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
             Välj lösenord
           </a>
           <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:24px 0 0">
-            Du är kopplad till ${klass.educations?.program_name}, klass ${klass.name}.
+            Du är kopplad till ${(klass.educations as any)?.program_name}, klass ${klass.name}.
           </p>
         </div>
       </div>
