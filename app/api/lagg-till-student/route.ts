@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!klass) return NextResponse.json({ error: 'Klassen hittades inte' }, { status: 404 })
-
+  const eduInfo = Array.isArray(klass.educations) ? klass.educations[0] : klass.educations
   // Finns användaren redan?
   const { data: befintlig } = await supabase
     .from('profiles').select('id, role').eq('email', rensad).maybeSingle()
@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id:      userId,
         class_id:     classId,
-        program:      (klass.educations as any)?.program_name || '',
-        school:       (klass.educations as any)?.school_name  || '',
+        program:      eduInfo?.program_name || '',
+        school:       eduInfo?.school_name  || '',
         status:       'söker',
         skapad_av_ul: true,
       })
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
             Välj lösenord
           </a>
           <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:24px 0 0">
-            Du är kopplad till ${(klass.educations as any)?.program_name}, klass ${klass.name}.
+            Du är kopplad till ${eduInfo?.program_name}, klass ${klass.name}.
           </p>
         </div>
       </div>
