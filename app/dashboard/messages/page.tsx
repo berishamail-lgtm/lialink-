@@ -62,7 +62,9 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!active || !user) return
-    openConversation(active)
+    let kanal: any
+    openConversation(active).then(k => { kanal = k })
+    return () => { if (kanal) supabase.removeChannel(kanal) }
   }, [active?.convId])
 
   // Ta reda på vem motparten är
@@ -173,7 +175,20 @@ export default function MessagesPage() {
         )
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       })
+     const kanal = supabase
+      .channel('conv-' + conv.convId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+        filter: `conversation_id=eq.${conv.convId}`,
+      }, payload => {
+        setMessages(prev =>
+          prev.some(m => m.id === payload.new.id) ? prev : [...prev, payload.new]
+        )
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      })
       .subscribe()
+
+    return kanal
   }
 
   async function send() {
