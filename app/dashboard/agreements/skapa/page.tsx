@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../../components/Sidebar'
+import { useEdu } from '../../../components/EduContext'
 
 export default function SkapaAvtal() {
   const [profile, setProfile]       = useState<any>(null)
@@ -30,8 +31,10 @@ export default function SkapaAvtal() {
 
   const supabase = createClient()
   const router   = useRouter()
+  const { current } = useEdu()
 
   useEffect(() => {
+    if (!current) return
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
