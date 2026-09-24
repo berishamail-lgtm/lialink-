@@ -14,6 +14,7 @@ export default function AgreementsPage() {
   const [loading, setLoading]       = useState(true)
   const supabase = createClient()
   const router   = useRouter()
+  const [last, setLast] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     async function load() {
@@ -183,19 +184,26 @@ export default function AgreementsPage() {
                       </p>
                     ) : (
                       <>
-                        <label className="flex items-start gap-3 mb-3 cursor-pointer">
+                        <a href={`/api/avtal-pdf?id=${a.id}`} target="_blank" rel="noopener" onClick={() => setLast({ ...last, [a.id]: true })} className="block w-full text-center border border-line rounded-full py-3 text-sm font-medium hover:border-text/30 transition mb-3">Läs avtalet</a>
+                        <label className={`flex items-start gap-3 mb-3 ${last[a.id] ? 'cursor-pointer' : 'opacity-40'}`}>
                           <input
                             type="checkbox"
+                            disabled={!last[a.id]}
                             checked={!!confirmed[a.id]}
                             onChange={e => setConfirmed({ ...confirmed, [a.id]: e.target.checked })}
                             className="mt-0.5 w-4 h-4 accent-[#e8420a] shrink-0"
                           />
                           <span className="text-muted text-sm leading-relaxed">
                             {profile?.role === 'company'
-                              ? `Jag är behörig att ingå detta avtal för ${a.companies?.company_name} och uppgifterna stämmer.`
+                              ? `Jag har läst avtalet, är behörig att ingå det för ${a.companies?.company_name} och uppgifterna stämmer.`
                               : 'Jag har läst avtalet och uppgifterna stämmer.'}
                           </span>
                         </label>
+                        {!last[a.id] && (
+                          <p className="text-muted text-sm mb-3">
+                            Öppna och läs avtalet innan du signerar.
+                          </p>
+                        )}
                         <button
                           onClick={() => sign(a.id)}
                           disabled={!confirmed[a.id] || signing === a.id}

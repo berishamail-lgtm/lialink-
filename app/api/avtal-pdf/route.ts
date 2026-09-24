@@ -42,7 +42,8 @@ export async function GET(req: NextRequest) {
   let y = 780
 
   function text(s: string, x: number, yy: number, size = 9, f = font, color = ink) {
-    page.drawText(s || '', { x, y: yy, size, font: f, color })
+    const rensad = (s || '').replace(/\r/g, '').replace(/[^\x20-\x7E\xA0-\xFFåäöÅÄÖ]/g, '')
+    page.drawText(rensad, { x, y: yy, size, font: f, color })
   }
 
   function box(x: number, yy: number, w: number, h: number) {
@@ -70,7 +71,8 @@ export async function GET(req: NextRequest) {
 
   function wrap(s: string, maxW: number, size: number, f = font): string[] {
     const out: string[] = []
-    for (const para of (s || '').split('\n')) {
+       const rensad = (s || '').replace(/\r/g, '').replace(/[^\x20-\x7E\xA0-\xFFåäöÅÄÖ\n]/g, '')
+    for (const para of rensad.split('\n')) {
       if (!para.trim()) { out.push(''); continue }
       let cur = ''
       for (const word of para.split(' ')) {
