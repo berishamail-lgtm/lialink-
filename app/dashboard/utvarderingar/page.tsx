@@ -26,6 +26,7 @@ const fragor = [
 ]
 
 export default function UtvarderingarPage() {
+  const [klart, setKlart] = useState('')
   const [profile, setProfile]     = useState<any>(null)
   const [education, setEducation] = useState<any>(null)
   const [rows, setRows]           = useState<any[]>([])
@@ -91,11 +92,18 @@ export default function UtvarderingarPage() {
     const data = await res.json()
     setBusy('')
     if (!res.ok) { setError(data.error || 'Kunde inte skicka'); return }
+    setKlart(paminnelse
+      ? 'Påminnelse skickad till ' + data.email
+      : 'Utvärdering skickad till ' + data.email)
     load()
   }
 
+  function evalAv(r: any) {
+    return Array.isArray(r.evaluations) ? r.evaluations[0] : r.evaluations
+  }
+
   const besvarade = rows
-    .map(r => r.evaluations)
+    .map(r => evalAv(r))
     .filter(e => e && e.status === 'besvarat')
 
   function snitt(key: string): number | null {
@@ -112,7 +120,42 @@ export default function UtvarderingarPage() {
     if (v >= 2.5) return 'text-text'
     return 'text-alert'
   }
+  function laddaNer() {
+    const kolumner = [
+      'Student', 'Klass', 'LIA-period', 'Företag', 'Handledare', 'Besvarad',
+      ...fragor.map(f => f.text), 'Kommentar',
+    ]
 
+    const rader = rows
+      .filter(r => evalAv(r)?.status === 'besvarat')
+      .map(r => {
+        const e = evalAv(r)
+        return [
+          r.students?.profiles?.full_name || '',
+          r.lia_periods?.classes?.name || '',
+          r.lia_periods?.name || '',
+          r.companies?.company_name || '',
+          e.handledare_name || '',
+          e.answered_at ? new Date(e.answered_at).toLocaleDateString('sv-SE') : '',
+          ...fragor.map(f => e[f.key] || ''),
+          (e.comment || '').replace(/\r?\n/g, ' '),
+        ]
+      })
+
+    if (!rader.length) return
+
+    const csv = [kolumner, ...rader]
+      .map(r => r.map(f => '"' + String(f).replace(/"/g, '""') + '"').join(';'))
+      .join('\n')
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = 'Utvarderingar-' + (education?.program_name || '').replace(/[^a-zA-ZåäöÅÄÖ0-9]/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
   if (loading) return (
     <div className="min-h-screen bg-paper flex items-center justify-center">
       <p className="text-muted text-sm">Laddar</p>
@@ -124,7 +167,16 @@ export default function UtvarderingarPage() {
       <Sidebar role="education" name={profile?.full_name} subtitle={education?.program_name} />
 
       <main className="flex-1 p-5 sm:p-8 max-w-4xl">
-        <h1 className="text-2xl sm:text-3xl mb-1">Utvärderingar</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-1">
+          <h1 className="text-2xl sm:text-3xl">Utvärderingar</h1>
+          <button
+            onClick={laddaNer}
+            disabled={!besvarade.length}
+            className="border border-line rounded-full px-4 py-2.5 text-sm text-muted hover:border-text/30 transition disabled:opacity-40"
+          >
+            Ladda ner svaren
+          </button>
+        </div>
         <p className="text-muted text-sm mb-7">
           Handledarna svarar via en länk, utan inloggning.
         </p>
@@ -134,7 +186,9 @@ export default function UtvarderingarPage() {
             {error}
           </p>
         )}
-
+        {klart && (
+          <p className="bg-ok/10 border border-ok/25 text-ok text-sm rounded-lg px-4 py-3 mb-5">{klart}</p>
+        )}
         {besvarade.length > 0 && (
           <section className="bg-card border border-line rounded-xl p-6 mb-5">
             <h2 className="text-base mb-1">Sammanställning</h2>
@@ -185,7 +239,7 @@ export default function UtvarderingarPage() {
         ) : (
           <div className="space-y-3">
             {rows.map(r => {
-              const ev  = r.evaluations
+              const ev  = evalAv(r)
               const st  = ev?.status || 'väntar'
               const namn = r.students?.profiles?.full_name
 
@@ -242,12 +296,17 @@ export default function UtvarderingarPage() {
                       )}
 
                       {st === 'besvarat' && (
-                        <button
-                          onClick={() => setOpen(open === r.id ? '' : r.id)}
-                          className="text-muted hover:text-text text-sm transition"
-                        >
-                          {open === r.id ? 'Dölj svar' : 'Visa svar'}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => setOpen(open === r.id ? '' : r.id)}
+                            className="text-muted hover:text-text text-sm transition"
+                          >
+                            {open === r.id ? 'Dölj svar' : 'Visa svar'}
+                          </button>
+                          <a href={`/api/utvardering-pdf?id=${ev.id}`} target="_blank" rel="noopener" className="text-muted hover:text-text text-sm transition">
+                            Ladda ner PDF
+                          </a>
+                        </>
                       )}
                     </div>
                   </div>
