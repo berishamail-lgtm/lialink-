@@ -43,8 +43,7 @@ export default function SkapaAvtal() {
         .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      const { data: edu } = await supabase
-        .from('educations').select('*').eq('user_id', user.id).single()
+      const edu = current
       setEducation(edu)
 
       if (edu) {
@@ -81,7 +80,7 @@ export default function SkapaAvtal() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [current?.id])
 
   useEffect(() => {
     const pl = placements.find(p => p.id === placementId)
