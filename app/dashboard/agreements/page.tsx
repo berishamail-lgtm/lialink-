@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
 
 export default function AgreementsPage() {
+  const [error, setError] = useState('')
   const [user, setUser]             = useState<any>(null)
   const [profile, setProfile]       = useState<any>(null)
   const [orgName, setOrgName]       = useState('')
@@ -77,6 +78,38 @@ export default function AgreementsPage() {
     setConfirmed({})
     await loadAgreements()
   }
+  async function taBortAvtal(a: any) {
+    const namn = a.students?.profiles?.full_name || 'studenten'
+    if (!confirm(`Ta bort avtalet för ${namn}? Det går inte att ångra.`)) return
+
+    const { error: err } = await supabase.from('agreements').delete().eq('id', a.id)
+    if (err) { setError(err.message); return }
+
+    await supabase.from('placements')
+      .update({ status: 'matchad' })
+      .eq('id', a.placement_id)
+
+    await loadAgreements()
+  }
+
+  async function avbrytAvtal(a: any) {
+    const skal = prompt('Varför avbryts avtalet?')
+    if (skal === null) return
+
+    const { error: err } = await supabase.from('agreements').update({
+      status: 'avbrutet',
+      avbrutet_skal: skal.trim() || null,
+      avbrutet_at: new Date().toISOString(),
+    }).eq('id', a.id)
+
+    if (err) { setError(err.message); return }
+
+    await supabase.from('placements')
+      .update({ status: 'avbruten' })
+      .eq('id', a.placement_id)
+
+    await loadAgreements()
+  }
 
   function mySignature(a: any) {
     if (profile?.role === 'student')   return a.student_signed_at
@@ -112,7 +145,9 @@ export default function AgreementsPage() {
             </button>
           )}
         </div>
-
+        {error && (
+          <p className="bg-alert/10 border border-alert/25 text-alert text-sm rounded-lg px-4 py-3 mb-5">{error}</p>
+        )}
         {agreements.length === 0 ? (
           <div className="bg-card border border-line rounded-xl p-12 text-center">
             <p className="mb-1">Inga avtal än</p>
@@ -152,6 +187,22 @@ export default function AgreementsPage() {
                     <p className="text-muted text-sm mt-3">
                       LIA-period {a.lia_start} till {a.lia_end}
                     </p>
+                                        {profile?.role === 'education' && a.status !== 'avbrutet' && (
+                      <div className="flex flex-wrap gap-4 mt-3">
+                        {!a.all_signed && (
+                          <button onClick={() => taBortAvtal(a)} className="text-muted hover:text-alert text-sm underline underline-offset-2 transition">Ta bort avtalet</button>
+                        )}
+                        {a.all_signed && (
+                          <button onClick={() => avbrytAvtal(a)} className="text-muted hover:text-alert text-sm underline underline-offset-2 transition">Avbryt avtalet</button>
+                        )}
+                      </div>
+                    )}
+                    {a.status === 'avbrutet' && (
+                      <p className="text-alert text-sm mt-3">
+                        Avbrutet{a.avbrutet_at ? ' ' + new Date(a.avbrutet_at).toLocaleDateString('sv-SE') : ''}
+                        {a.avbrutet_skal ? ': ' + a.avbrutet_skal : ''}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-3 border-t border-line divide-x divide-line">

@@ -35,10 +35,18 @@ export async function POST(req: NextRequest) {
   const companyName = a.companies?.company_name || 'Företaget'
   const schoolName  = a.educations?.school_name || 'Utbildningen'
 
+  function platta(v: any) {
+    return Array.isArray(v) ? v[0] : v
+  }
+
+  const stud = platta(a.students)
+  const comp = platta(a.companies)
+  const edu  = platta(a.educations)
+
   const recipients = [
-    a.students?.profiles?.email,
-    a.companies?.profiles?.email,
-    a.educations?.profiles?.email,
+    platta((stud as any)?.profiles)?.email,
+    platta((comp as any)?.profiles)?.email,
+    platta((edu as any)?.profiles)?.email,
   ].filter(Boolean) as string[]
 
   if (recipients.length === 0) {
