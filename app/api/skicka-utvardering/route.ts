@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   if (!avtal?.handledare_email) {
     return NextResponse.json(
-      { error: 'Ingen e-post till handledaren. Fyll i den pa avtalet forst.' },
+      { error: 'Ingen e-post till handledaren. Fyll i den på avtalet först.' },
       { status: 400 }
     )
   }
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (ev?.status === 'besvarat') {
-    return NextResponse.json({ error: 'Utvarderingen ar redan besvarad' }, { status: 409 })
+    return NextResponse.json({ error: 'Utvärderingen är redan besvarad' }, { status: 409 })
   }
 
   if (!ev) {
@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
   const url = `${req.nextUrl.origin}/utvardering/${ev.token}`
 
   const inledning = paminnelse
-    ? `Vi skickade nyligen en utvardering for ${studentNamn}s LIA-period hos er, och har inte fatt in nagra svar an. Hinner ni svara tar det ett par minuter.`
-    : `${studentNamn} har nu avslutat sin LIA-period hos er. Som handledare ar er bedomning en del av underlaget for att studenten ska bli godkand pa kursen.`
+    ? `Vi skickade nyligen en utvärdering för ${studentNamn}s LIA-period hos er, och har inte fått in några svar än. Hinner ni svara tar det ett par minuter.`
+    : `${studentNamn} har nu avslutat sin LIA-period hos er. Som handledare är er bedömning en del av underlaget för att studenten ska bli godkänd på kursen.`
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1816">
@@ -102,17 +102,17 @@ export async function POST(req: NextRequest) {
 
         <table style="width:100%;font-size:14px;border-collapse:collapse;margin-bottom:24px">
           <tr><td style="padding:6px 0;color:#6b6560">Student</td><td style="padding:6px 0">${studentNamn}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b6560">Foretag</td><td style="padding:6px 0">${foretag}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b6560">Företag</td><td style="padding:6px 0">${foretag}</td></tr>
           <tr><td style="padding:6px 0;color:#6b6560">Utbildning</td><td style="padding:6px 0">${program}</td></tr>
           <tr><td style="padding:6px 0;color:#6b6560">Period</td><td style="padding:6px 0">${periodNamn}, ${start} till ${slut}</td></tr>
         </table>
 
         <a href="${url}" style="display:inline-block;background:#e8420a;color:#fff;text-decoration:none;padding:13px 26px;border-radius:100px;font-weight:bold;font-size:14px">
-          Fyll i utvarderingen
+          Fyll i utvärderingen
         </a>
 
         <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:24px 0 0">
-          Ingen inloggning behovs. Lanken fungerar aven i mobilen.
+          Ingen inloggning behövs. Länken fungerar även i mobilen.
         </p>
       </div>
       <p style="text-align:center;color:#aaa;font-size:11px;margin-top:16px">
@@ -126,8 +126,8 @@ export async function POST(req: NextRequest) {
       from: 'LIAlink <noreply@lialink.se>',
       to: avtal.handledare_email,
       subject: paminnelse
-        ? `Paminnelse: utvardering for ${studentNamn}`
-        : `Utvardering efter LIA: ${studentNamn}`,
+        ? `Påminnelse: utvärdering för ${studentNamn}`
+        : `Utvärdering efter LIA: ${studentNamn}`,
       html,
     })
   } catch (e: any) {
