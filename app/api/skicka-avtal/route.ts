@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
           <tr><td style="padding:8px 0;color:#6b6560">Student</td><td style="padding:8px 0;font-weight:bold">${studentName}</td></tr>
           <tr><td style="padding:8px 0;color:#6b6560">Arbetsgivare</td><td style="padding:8px 0;font-weight:bold">${companyName}</td></tr>
           <tr><td style="padding:8px 0;color:#6b6560">Utbildning</td><td style="padding:8px 0;font-weight:bold">${schoolName}</td></tr>
-          <tr><td style="padding:8px 0;color:#6b6560">LIA-period</td><td style="padding:8px 0;font-weight:bold">${a.lia_start} â€“ ${a.lia_end}</td></tr>
+          <tr><td style="padding:8px 0;color:#6b6560">LIA-period</td><td style="padding:8px 0;font-weight:bold">${a.lia_start} till ${a.lia_end}</td></tr>
         </table>
         <p style="color:#6b6560;font-size:12px;line-height:1.6;margin:0">
           Spara detta mejl som kvitto på signeringen. Vid frågor, kontakta din utbildningsledare.
