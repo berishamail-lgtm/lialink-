@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (classIds.length) {
     const { data: s } = await supabase
       .from('students')
-      .select('*, classes(name, termin), profiles(full_name, email, city)')
+      .select('*, classes(name, termin, yh_kod), profiles(full_name, email, city)')
       .in('class_id', classIds)
     students = s || []
 
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       const { data: pl } = await supabase
         .from('placements')
         .select(`*,
-          lia_periods(name, sequence, start_date, end_date, weeks, classes(name, termin)),
+          lia_periods(name, sequence, start_date, end_date, weeks, classes(name, termin, yh_kod)),
           students(profiles(full_name, email, city)),
           companies(company_name, org_number, city, sector)`)
         .in('lia_period_id', periodIds)
@@ -75,10 +75,12 @@ export async function GET(req: NextRequest) {
     { 'Nyckeltal': 'Placeringsgrad (%)',             'Värde': placements.length ? Math.round((medPlats / placements.length) * 100) : 0 },
     { 'Nyckeltal': 'Fullföljandegrad (%)',           'Värde': placements.length ? Math.round((klara / placements.length) * 100) : 0 },
     { 'Nyckeltal': 'Rapport genererad',              'Värde': new Date().toLocaleDateString('sv-SE') },
+    { 'Nyckeltal': 'YH-koder',                       'Värde': (cls || []).map(c => c.yh_kod).filter(Boolean).join(', ') },
   ]
 
   // Blad 2: Placeringar
   const placRows = placements.map(p => ({
+    'YH-kod':       p.lia_periods?.classes?.yh_kod || '',
     'Student':      p.students?.profiles?.full_name || '',
     'E-post':       p.students?.profiles?.email || '',
     'Ort':          p.students?.profiles?.city || '',
@@ -100,6 +102,7 @@ export async function GET(req: NextRequest) {
   const agrRows = agreements.map(a => {
     const p = placements.find(x => x.id === a.placement_id)
     return {
+      'YH-kod':     p?.lia_periods?.classes?.yh_kod || '',
       'Student':        p?.students?.profiles?.full_name || '',
       'LIA-period':     p?.lia_periods?.name || '',
       'Företag':        p?.companies?.company_name || '',
@@ -117,6 +120,7 @@ export async function GET(req: NextRequest) {
   const evRows = evaluations.filter(e => e.status === 'besvarat').map(e => {
     const p = placements.find(x => x.id === e.placement_id)
     return {
+      'YH-kod':          p?.lia_periods?.classes?.yh_kod || '',
       'Student':          p?.students?.profiles?.full_name || '',
       'LIA-period':       p?.lia_periods?.name || '',
       'Företag':          p?.companies?.company_name || '',
@@ -146,15 +150,15 @@ export async function GET(req: NextRequest) {
   XLSX.utils.book_append_sheet(wb, ws1, 'Sammanfattning')
 
   const ws2 = XLSX.utils.json_to_sheet(placRows)
-  ws2['!cols'] = Array(15).fill({ wch: 18 })
+  ws2['!cols'] = Array(16).fill({ wch: 18 })
   XLSX.utils.book_append_sheet(wb, ws2, 'Placeringar')
 
   const ws3 = XLSX.utils.json_to_sheet(agrRows)
-  ws3['!cols'] = Array(10).fill({ wch: 18 })
+  ws3['!cols'] = Array(11).fill({ wch: 18 })
   XLSX.utils.book_append_sheet(wb, ws3, 'Avtal')
 
   const ws4 = XLSX.utils.json_to_sheet(evRows)
-  ws4['!cols'] = Array(19).fill({ wch: 15 })
+  ws4['!cols'] = Array(20).fill({ wch: 15 })
   XLSX.utils.book_append_sheet(wb, ws4, 'Utvärderingar')
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
