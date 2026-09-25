@@ -43,7 +43,8 @@ export default function SkapaAvtal() {
         .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      const edu = current
+      const { data: edu } = await supabase
+        .from('educations').select('*').eq('user_id', user.id).single()
       setEducation(edu)
 
       if (edu) {
@@ -80,7 +81,7 @@ export default function SkapaAvtal() {
       setLoading(false)
     }
     load()
-  }, [current?.id])
+   }, [current?.id])
 
   useEffect(() => {
     const pl = placements.find(p => p.id === placementId)
@@ -133,7 +134,16 @@ export default function SkapaAvtal() {
     await supabase.from('placements')
       .update({ company_id: companyId, status: 'avtal' })
       .eq('id', placementId)
+    const { data: nyttAvtal } = await supabase
+      .from('agreements').select('id').eq('placement_id', placementId).maybeSingle()
 
+    if (nyttAvtal) {
+      fetch('/api/avtal-notis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agreementId: nyttAvtal.id }),
+      }).catch(() => {})
+    }
     router.push('/dashboard/agreements')
   }
 
