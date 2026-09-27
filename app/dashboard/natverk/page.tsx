@@ -53,6 +53,10 @@ export default function NatverkPage() {
   const [statusFilter, setStatusFilter] = useState('alla')
   const [sidor, setSidor] = useState(1)
   const [senasteSvar, setSenasteSvar] = useState<Record<string, string>>({})
+  const [logg, setLogg]       = useState<Record<string, any[]>>({})
+  const [lTyp, setLTyp]       = useState('samtal')
+  const [lDatum, setLDatum]   = useState('')
+  const [lText, setLText]     = useState('')
 
   useEffect(() => { if (current) load() }, [current?.id])
 
@@ -82,6 +86,15 @@ export default function NatverkPage() {
         km[k.partner_id].push(k)
       }
       setKontakter(km)
+       const { data: lg } = await supabase
+        .from('partner_log').select('*').in('partner_id', partnerIds)
+        .order('datum', { ascending: false })
+      const lm: Record<string, any[]> = {}
+      for (const l of lg || []) {
+        lm[l.partner_id] = lm[l.partner_id] || []
+        lm[l.partner_id].push(l)
+      }
+      setLogg(lm)
     }
 
     const { data: cls } = await supabase
@@ -362,6 +375,42 @@ export default function NatverkPage() {
 
   function vaxlaMottagare(id: string) {
     setUrvalda(urvalda.includes(id) ? urvalda.filter(x => x !== id) : [...urvalda, id])
+  }
+    async function sparaLogg(partnerId: string) {
+    if (!lText.trim()) return
+    setBusy(true); setError('')
+
+    const { error: err } = await supabase.from('partner_log').insert({
+      partner_id: partnerId,
+      typ:        lTyp,
+      datum:      lDatum || new Date().toISOString().slice(0, 10),
+      text:       lText.trim(),
+      created_by: profile?.id,
+    })
+
+    setBusy(false)
+    if (err) { setError(err.message); return }
+
+    setLText(''); setLDatum(''); setLTyp('samtal')
+    load()
+  }
+
+  async function taBortLogg(id: string) {
+    await supabase.from('partner_log').delete().eq('id', id)
+    load()
+  }
+
+  function loggTypText(t: string) {
+    const m: Record<string, string> = {
+      samtal: 'Samtal', mote: 'Möte', mejl: 'Mejl',
+      besok: 'Besök', anteckning: 'Anteckning',
+    }
+    return m[t] || t
+  }
+
+  function dagarSedan(datum?: string) {
+    if (!datum) return null
+    return Math.floor((Date.now() - new Date(datum).getTime()) / (1000 * 60 * 60 * 24))
   }
   function relationsstatus(p: any): string {
     const svar = senasteSvar[p.id]
@@ -749,6 +798,17 @@ export default function NatverkPage() {
                         )}
 
                         {p.note && <p className="text-sm mt-2 leading-relaxed">{p.note}</p>}
+                                                {(() => {
+                          const senaste = (logg[p.id] || [])[0]
+                          if (!senaste) return null
+                          const d = dagarSedan(senaste.datum)
+                          return (
+                            <p className="text-muted text-sm mt-2">
+                              {loggTypText(senaste.typ)} {senaste.datum}
+                              {d !== null && d > 180 ? ', ' + Math.floor(d / 30) + ' månader sedan' : ''}
+                            </p>
+                          )
+                        })()}
                         {!p.utskick && p.aktiv && (
                           <p className="text-muted text-xs mt-2">Får inte utskick</p>
                         )}
@@ -850,15 +910,74 @@ export default function NatverkPage() {
                       </div>
 
                       <div>
-                        <p className="text-sm font-medium mb-2">Anteckning</p>
+                        <p className="text-sm font-medium mb-2">Om företaget</p>
                         <textarea
                           defaultValue={p.note || ''}
                           onBlur={e => sparaNote(p.id, e.target.value)}
                           rows={2}
-                          placeholder="Vad är bra att veta inför nästa gång?"
+                          placeholder="Vad är bra att veta? Inriktning, förutsättningar, annat bestående."
                           className={field + ' resize-y bg-card'}
                         />
                         <p className="text-muted text-xs mt-1.5">Sparas när du klickar utanför rutan.</p>
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-medium mb-2">Kontakthistorik</p>
+
+                        {(logg[p.id] || []).length === 0 ? (
+                          <p className="text-muted text-sm mb-3">Inget loggat än.</p>
+                        ) : (
+                          <div className="border border-line rounded-lg divide-y divide-line bg-card mb-3 max-h-64 overflow-y-auto">
+                            {(logg[p.id] || []).map(l => (
+                              <div key={l.id} className="px-4 py-3 group">
+                                <div className="flex flex-wrap items-baseline justify-between gap-2 mb-0.5">
+                                  <span className="text-sm font-medium">
+                                    {loggTypText(l.typ)}
+                                  </span>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <span className="text-muted text-xs">{l.datum}</span>
+                                    <button onClick={() => taBortLogg(l.id)}
+                                      className="text-muted hover:text-alert text-xs opacity-0 group-hover:opacity-100 transition">
+                                      Ta bort
+                                    </button>
+                                  </div>
+                                </div>
+                                <p className="text-sm leading-relaxed">{l.text}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="bg-card border border-line rounded-lg p-4 space-y-3">
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-sm mb-1.5">Typ</label>
+                              <select value={lTyp} onChange={e => setLTyp(e.target.value)} className={field}>
+                                <option value="samtal">Samtal</option>
+                                <option value="mejl">Mejl</option>
+                                <option value="mote">Möte</option>
+                                <option value="besok">Besök</option>
+                                <option value="anteckning">Anteckning</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm mb-1.5">Datum</label>
+                              <input type="date" value={lDatum} onChange={e => setLDatum(e.target.value)}
+                                className={field} />
+                              <p className="text-muted text-xs mt-1.5">Tomt blir idag.</p>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm mb-1.5">Vad hände?</label>
+                            <textarea value={lText} onChange={e => setLText(e.target.value)} rows={2}
+                              placeholder="Pratade med Anna, de tar två till våren men vill veta datum i god tid."
+                              className={field + ' resize-y'} />
+                          </div>
+                          <button onClick={() => sparaLogg(p.id)} disabled={busy || !lText.trim()}
+                            className="bg-text text-paper rounded-full px-5 py-2 text-sm font-medium hover:opacity-85 transition disabled:opacity-40">
+                            {busy ? 'Sparar' : 'Spara i loggen'}
+                          </button>
+                        </div>
                       </div>
 
                       {hist.length > 0 && (
