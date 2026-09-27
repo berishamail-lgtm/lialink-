@@ -85,34 +85,16 @@ export async function POST(req: NextRequest) {
 
   const ul = (edu as any).profiles
   let skickade = 0
+//ERsätt
+  const GRANS = 90   // marginal mot Resends dagsgräns på 100
+  const misslyckade: string[] = []
+  let skickade = 0
 
   for (const m of mottagare) {
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1816">
-        <div style="background:#0f0e0d;padding:26px 30px;border-radius:14px 14px 0 0">
-          <span style="font-size:20px;font-weight:bold;color:#fff">LIA<span style="color:#e8420a">link</span></span>
-        </div>
-        <div style="border:1px solid #e8e4de;border-top:none;border-radius:0 0 14px 14px;padding:30px">
-          <p style="font-size:15px;line-height:1.7;margin:0 0 18px">Hej ${m.namn || m.foretag},</p>
-          <div style="font-size:15px;line-height:1.7;margin:0 0 20px;white-space:pre-wrap">${meddelande.trim()}</div>
-          ${periodText ? `
-            <div style="background:#faf8f5;border:1px solid #e8e4de;border-radius:10px;padding:14px 16px;margin-bottom:20px">
-              <p style="font-size:13px;color:#6b6560;margin:0 0 4px">Aktuell LIA-period</p>
-              <p style="font-size:14px;margin:0"><strong>${periodText}</strong></p>
-            </div>
-          ` : ''}
-          <p style="font-size:14px;line-height:1.7;margin:0 0 6px">
-            Vänliga hälsningar<br>
-            ${ul?.full_name || ''}<br>
-            <span style="color:#6b6560">${edu.program_name}, ${edu.school_name}</span>
-          </p>
-        </div>
-        <p style="text-align:center;color:#aaa;font-size:11px;margin-top:16px;line-height:1.6">
-          Du får detta mejl för att ${edu.school_name} har dig i sitt LIA-nätverk.<br>
-          Vill du inte få fler utskick, svara på mejlet så tar vi bort dig.
-        </p>
-      </div>
-    `
+    if (skickade >= GRANS) {
+      misslyckade.push(m.email)
+      continue
+    }
 
     try {
       await resend.emails.send({
@@ -120,11 +102,11 @@ export async function POST(req: NextRequest) {
         replyTo: ul?.email || undefined,
         to: m.email,
         subject: amne.trim(),
-        html,
+        html: mall(m),
       })
       skickade++
-    } catch (e) {
-      // fortsätt med nästa mottagare
+    } catch (e: any) {
+      misslyckade.push(m.email)
     }
   }
 
@@ -136,5 +118,13 @@ export async function POST(req: NextRequest) {
     antal:         skickade,
   })
 
-  return NextResponse.json({ ok: true, skickade, totalt: mottagare.length })
+  return NextResponse.json({
+    ok: true,
+    skickade,
+    totalt: mottagare.length,
+    misslyckade: misslyckade.length,
+    varning: misslyckade.length
+      ? `${misslyckade.length} mejl gick inte fram. Dagsgränsen för utskick är nådd — försök igen imorgon.`
+      : null,
+  })
 }
