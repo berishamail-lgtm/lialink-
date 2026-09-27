@@ -31,6 +31,7 @@ const menus: Record<string, { href: string; label: string }[]> = {
   ],
   company: [
     { href: '/dashboard/company',            label: 'Kandidater' },
+    { href: '/dashboard/company/historik', label: 'Våra studenter' },
     { href: '/dashboard/company/profil',     label: 'Företagsprofil' },
     { href: '/dashboard/company/handledare', label: 'Handledare' },
     { href: '/dashboard/agreements',         label: 'Avtal' },
