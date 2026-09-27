@@ -317,7 +317,8 @@ export default function UtvarderingarPage() {
                           </button>
                           <a href={`/api/utvardering-pdf?id=${ev.id}`} target="_blank" rel="noopener" className="text-muted hover:text-text text-sm transition">
                             Ladda ner PDF
-                                                      {!r.tack_skickat_at && (
+                          </a>
+                          {!r.tack_skickat_at && (
                             <button onClick={() => skickaTack(r)} disabled={busy === r.id}
                               className="text-muted hover:text-text text-sm transition disabled:opacity-40">
                               Skicka tack
@@ -326,7 +327,6 @@ export default function UtvarderingarPage() {
                           {r.tack_skickat_at && (
                             <span className="text-muted text-sm">Tack skickat</span>
                           )}
-                          </a>
                         </>
                       )}
                     </div>
