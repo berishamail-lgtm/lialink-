@@ -24,7 +24,7 @@ const fragor = [
   { key: 'q11_uppforande',     text: 'Uppförande',                      grupp: 'student' },
   { key: 'q12_redovisning',    text: 'Muntlig LIA-redovisning',         grupp: 'student' },
 ]
-id, status, actual_start, actual_end,export default function UtvarderingarPage() {
+export default function UtvarderingarPage() {
   const [klart, setKlart] = useState('')
   const [profile, setProfile]     = useState<any>(null)
   const [education, setEducation] = useState<any>(null)
