@@ -33,23 +33,38 @@ export async function POST(req: NextRequest) {
 
   // Hämta e-post även för företag med konto
   const mottagare: { email: string; namn: string; foretag: string }[] = []
+  const sedda = new Set<string>()
 
   for (const p of partners || []) {
     const c = (p as any).companies
-        if (!c) continue
+    if (!c) continue
     if (valda.length && !valda.includes(c.id)) continue
 
-    let epost = c.contact_email
-    let namn  = c.contact_name || ''
+    // Aktiva kontaktpersoner för relationen
+    const { data: kontakter } = await supabase
+      .from('partner_contacts')
+      .select('name, email')
+      .eq('partner_id', p.id)
+      .eq('aktiv', true)
+      .not('email', 'is', null)
 
-    if (!epost && c.user_id) {
-      const { data: prof } = await supabase
-        .from('profiles').select('email, full_name').eq('id', c.user_id).maybeSingle()
-      epost = prof?.email
-      namn  = namn || prof?.full_name || ''
+    for (const k of kontakter || []) {
+      const nyckel = (k.email || '').toLowerCase()
+      if (!nyckel || sedda.has(nyckel)) continue
+      sedda.add(nyckel)
+      mottagare.push({ email: k.email, namn: k.name || '', foretag: c.company_name })
     }
 
-    if (epost) mottagare.push({ email: epost, namn, foretag: c.company_name })
+    // Kontot som fallback om inga kontaktpersoner finns
+    if (!kontakter?.length && c.user_id) {
+      const { data: prof } = await supabase
+        .from('profiles').select('email, full_name').eq('id', c.user_id).maybeSingle()
+      const nyckel = (prof?.email || '').toLowerCase()
+      if (nyckel && !sedda.has(nyckel)) {
+        sedda.add(nyckel)
+        mottagare.push({ email: prof!.email, namn: prof?.full_name || '', foretag: c.company_name })
+      }
+    }
   }
 
   if (!mottagare.length) {

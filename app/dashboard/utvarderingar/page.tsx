@@ -24,8 +24,7 @@ const fragor = [
   { key: 'q11_uppforande',     text: 'Uppförande',                      grupp: 'student' },
   { key: 'q12_redovisning',    text: 'Muntlig LIA-redovisning',         grupp: 'student' },
 ]
-
-export default function UtvarderingarPage() {
+id, status, actual_start, actual_end,export default function UtvarderingarPage() {
   const [klart, setKlart] = useState('')
   const [profile, setProfile]     = useState<any>(null)
   const [education, setEducation] = useState<any>(null)
@@ -66,7 +65,7 @@ export default function UtvarderingarPage() {
           const { data: pl } = await supabase
             .from('placements')
             .select(`
-              id, status, actual_start, actual_end,
+              id, status, actual_start, actual_end, tack_skickat_at,
               lia_periods(name, start_date, end_date, classes(name)),
               students(profiles(full_name)),
               companies(company_name),
@@ -155,6 +154,19 @@ export default function UtvarderingarPage() {
     a.download = 'Utvarderingar-' + (education?.program_name || '').replace(/[^a-zA-ZåäöÅÄÖ0-9]/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.csv'
     a.click()
     URL.revokeObjectURL(url)
+  }
+    async function skickaTack(r: any) {
+    setBusy(r.id); setError(''); setKlart('')
+    const res = await fetch('/api/tack-handledare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placementId: r.id }),
+    })
+    const data = await res.json()
+    setBusy('')
+    if (!res.ok) { setError(data.error || 'Kunde inte skicka'); return }
+    setKlart('Tack skickat till ' + data.skickade + ' mottagare')
+    load()
   }
   if (loading) return (
     <div className="min-h-screen bg-paper flex items-center justify-center">
@@ -305,6 +317,15 @@ export default function UtvarderingarPage() {
                           </button>
                           <a href={`/api/utvardering-pdf?id=${ev.id}`} target="_blank" rel="noopener" className="text-muted hover:text-text text-sm transition">
                             Ladda ner PDF
+                                                      {!r.tack_skickat_at && (
+                            <button onClick={() => skickaTack(r)} disabled={busy === r.id}
+                              className="text-muted hover:text-text text-sm transition disabled:opacity-40">
+                              Skicka tack
+                            </button>
+                          )}
+                          {r.tack_skickat_at && (
+                            <span className="text-muted text-sm">Tack skickat</span>
+                          )}
                           </a>
                         </>
                       )}
