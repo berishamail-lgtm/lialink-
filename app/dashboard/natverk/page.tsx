@@ -50,6 +50,9 @@ export default function NatverkPage() {
   const supabase = createClient()
   const router   = useRouter()
   const { current } = useEdu()
+  const [statusFilter, setStatusFilter] = useState('alla')
+  const [sidor, setSidor] = useState(1)
+  const [senasteSvar, setSenasteSvar] = useState<Record<string, string>>({})
 
   useEffect(() => { if (current) load() }, [current?.id])
 
@@ -117,12 +120,19 @@ export default function NatverkPage() {
 
     const { data: ff } = await supabase
       .from('intresseforfragan')
-      .select('*, lia_periods(name, start_date, end_date), intressesvar(svar, antal, kommentar, kontakt_namn, svarat_at, education_partners(companies(company_name, city)))')
+      .select('*, lia_periods(name, start_date, end_date), intressesvar(partner_id,svar, antal, kommentar, kontakt_namn, svarat_at, education_partners(companies(company_name, city)))')
       .eq('education_id', current.id)
       .order('skapad_at', { ascending: false })
       .limit(3)
     setForfragningar(ff || [])
-
+    const senaste = (ff || [])[0]
+    if (senaste) {
+      const sm: Record<string, string> = {}
+      for (const s of senaste.intressesvar || []) {
+        if (s.svar) sm[s.partner_id] = s.svar
+      }
+      setSenasteSvar(sm)
+    }
     setLoading(false)
   }
 
@@ -288,16 +298,21 @@ export default function NatverkPage() {
   const aktiva = partners.filter(p => p.aktiv)
   const arkiv  = partners.filter(p => !p.aktiv)
 
-  const synliga = (visaArkiv ? arkiv : aktiva).filter(p => {
-    if (!sok.trim()) return true
-    const q = sok.toLowerCase()
-    const c = p.companies
-    const kont = (kontakter[p.id] || []).map(k => k.name).join(' ').toLowerCase()
-    return (c?.company_name || '').toLowerCase().includes(q)
-        || (c?.city || '').toLowerCase().includes(q)
-        || (c?.sector || '').toLowerCase().includes(q)
-        || kont.includes(q)
-  })
+  const synliga = (visaArkiv ? arkiv : aktiva)
+    .filter(p => {
+      if (statusFilter !== 'alla' && relationsstatus(p) !== statusFilter) return false
+      if (!sok.trim()) return true
+      const q = sok.toLowerCase()
+      const c = p.companies
+      const kont = (kontakter[p.id] || []).map(k => k.name).join(' ').toLowerCase()
+      return (c?.company_name || '').toLowerCase().includes(q)
+          || (c?.city || '').toLowerCase().includes(q)
+          || (c?.sector || '').toLowerCase().includes(q)
+          || kont.includes(q)
+    })
+    .sort((a, b) => ordning[relationsstatus(a)] - ordning[relationsstatus(b)])
+
+  const visade = synliga.slice(0, sidor * 20)
 
   function laddaNer() {
     const rader = [
@@ -348,7 +363,42 @@ export default function NatverkPage() {
   function vaxlaMottagare(id: string) {
     setUrvalda(urvalda.includes(id) ? urvalda.filter(x => x !== id) : [...urvalda, id])
   }
+  function relationsstatus(p: any): string {
+    const svar = senasteSvar[p.id]
+    if (svar === 'ja')     return 'ja'
+    if (svar === 'nej')    return 'nej'
 
+    const hist = historik[p.companies?.id] || []
+    if (!hist.length) return 'ny'
+
+    const senast = hist
+      .map((h: any) => h.lia_periods?.end_date)
+      .filter(Boolean)
+      .sort()
+      .pop()
+
+    if (!senast) return 'aktiv'
+    const manader = (Date.now() - new Date(senast).getTime()) / (1000 * 60 * 60 * 24 * 30)
+    return manader > 12 ? 'svalnande' : 'aktiv'
+  }
+
+  const statusText: Record<string, string> = {
+    ja:        'Svarat ja',
+    aktiv:     'Aktiv',
+    svalnande: 'Hörts av sig sist för över ett år sedan',
+    ny:        'Ny, har inte tagit emot än',
+    nej:       'Tackat nej senast',
+  }
+
+  const statusStil: Record<string, string> = {
+    ja:        'bg-ok/10 text-ok',
+    aktiv:     'bg-ok/10 text-ok',
+    svalnande: 'bg-warn/10 text-warn',
+    ny:        'bg-muted/10 text-muted',
+    nej:       'bg-muted/10 text-muted',
+  }
+
+  const ordning: Record<string, number> = { ja: 0, svalnande: 1, aktiv: 2, ny: 3, nej: 4 }
   const field = 'w-full bg-paper border border-line rounded-lg px-4 py-2.5 text-sm outline-none focus:border-text/40 transition'
 
   if (loading) return (
@@ -610,7 +660,33 @@ export default function NatverkPage() {
             </button>
           )}
         </div>
-
+        {!visaArkiv && partners.length > 5 && (
+          <div className="flex flex-wrap gap-1.5 mb-5">
+            {[
+              { v: 'alla',      t: 'Alla' },
+              { v: 'ja',        t: 'Svarat ja' },
+              { v: 'svalnande', t: 'Svalnande' },
+              { v: 'aktiv',     t: 'Aktiva' },
+              { v: 'ny',        t: 'Nya' },
+              { v: 'nej',       t: 'Tackat nej' },
+            ].map(f => {
+              const n = f.v === 'alla'
+                ? aktiva.length
+                : aktiva.filter(p => relationsstatus(p) === f.v).length
+              if (f.v !== 'alla' && n === 0) return null
+              return (
+                <button
+                  key={f.v}
+                  onClick={() => { setStatusFilter(f.v); setSidor(1) }}
+                  className={'px-3.5 py-2 rounded-full text-sm transition ' +
+                    (statusFilter === f.v ? 'bg-text text-paper' : 'bg-card border border-line text-muted hover:border-text/30')}
+                >
+                  {f.t} <span className="opacity-50">{n}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
         {synliga.length === 0 ? (
           <div className="bg-card border border-line rounded-xl p-12 text-center">
             <p className="mb-1">{visaArkiv ? 'Arkivet är tomt' : partners.length === 0 ? 'Nätverket är tomt' : 'Inga träffar'}</p>
@@ -622,7 +698,7 @@ export default function NatverkPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {synliga.map(p => {
+            {visade.map(p => {
               const c = p.companies
               const hist = historik[c?.id] || []
               const kont = kontakter[p.id] || []
@@ -643,6 +719,14 @@ export default function NatverkPage() {
                               {hist.length} {hist.length === 1 ? 'placering' : 'placeringar'}
                             </span>
                           )}
+                                                    {(() => {
+                            const st = relationsstatus(p)
+                            return st !== 'aktiv' || true ? (
+                              <span className={'rounded-full px-2.5 py-0.5 text-xs ' + statusStil[st]}>
+                                {st === 'svalnande' ? 'svalnande' : st === 'ja' ? 'svarat ja' : st === 'nej' ? 'tackat nej' : st === 'ny' ? 'ny' : 'aktiv'}
+                              </span>
+                            ) : null
+                          })()}
                           {p.kalla === 'placering' && (
                             <span className="bg-muted/10 text-muted rounded-full px-2.5 py-0.5 text-xs">via placering</span>
                           )}
