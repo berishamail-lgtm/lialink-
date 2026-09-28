@@ -21,6 +21,10 @@ export default function UtbildningarPage() {
 
   const supabase = createClient()
   const router   = useRouter()
+  const [skolor, setSkolor]     = useState<any[]>([])
+  const [skolId, setSkolId]     = useState('')
+  const [nySkola, setNySkola]   = useState('')
+  const [nyOrgNr, setNyOrgNr]   = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -35,6 +39,13 @@ export default function UtbildningarPage() {
     const { data } = await supabase
       .from('educations').select('*').eq('user_id', user.id).order('program_name')
     setRader(data || [])
+        const { data: sk } = await supabase
+      .from('schools').select('*').order('name')
+    setSkolor(sk || [])
+
+    if (!skolId && rader.length && (rader[0] as any).school_id) {
+      setSkolId((rader[0] as any).school_id)
+    }
     setLoading(false)
   }
 
@@ -43,28 +54,54 @@ export default function UtbildningarPage() {
     setBusy(true)
     setError('')
 
+    let valdSkola = skolId
+
+    if (!valdSkola) {
+      if (!nySkola.trim()) {
+        setError('Välj en skola eller ange en ny.')
+        setBusy(false)
+        return
+      }
+
+      const { data: fanns } = await supabase
+        .from('schools').select('id').ilike('name', nySkola.trim()).maybeSingle()
+
+      if (fanns) {
+        valdSkola = fanns.id
+      } else {
+        const { data: ny, error: skErr } = await supabase
+          .from('schools')
+          .insert({ name: nySkola.trim(), org_number: nyOrgNr.trim() || null })
+          .select('id').single()
+
+        if (skErr) { setError(skErr.message); setBusy(false); return }
+        valdSkola = ny.id
+      }
+    }
+
+    const skola = skolor.find(s => s.id === valdSkola)
     const forsta = rader[0]
 
     const { error: err } = await supabase.from('educations').insert({
-      user_id:      profile.id,
-      program_name: program.trim(),
-      school_name:  skola.trim(),
-      city:         city.trim() || null,
-      org_number:   orgNr.trim() || forsta?.org_number || null,
-      phone:        phone.trim() || forsta?.phone || null,
+      user_id:       profile.id,
+      school_id:     valdSkola,
+      program_name:  program.trim(),
+      school_name:   skola?.name || nySkola.trim(),
+      city:          city.trim() || null,
+      org_number:    orgNr.trim() || skola?.org_number || forsta?.org_number || null,
+      phone:         phone.trim() || forsta?.phone || null,
       contact_phone: forsta?.contact_phone || null,
-      villkor_text: forsta?.villkor_text || null,
-      status:       forsta?.status === 'godkänd' ? 'godkänd' : 'väntar',
-      avtal_tecknat: forsta?.avtal_tecknat || null,
+      villkor_text:  forsta?.villkor_text || null,
     })
 
     setBusy(false)
     if (err) { setError(err.message); return }
 
     setProgram(''); setSkola(''); setCity(''); setOrgNr(''); setPhone('')
+    setNySkola(''); setNyOrgNr('')
     setShow(false)
     window.location.reload()
-  }
+    }
 
   async function arkivera(id: string) {
     if (!confirm('Arkivera utbildningen? Den döljs men data finns kvar.')) return
@@ -113,8 +150,15 @@ export default function UtbildningarPage() {
                 <input value={program} onChange={e => setProgram(e.target.value)} required placeholder="Systemingenjör 4.0" className={field} />
               </div>
               <div>
-                <label className="block text-sm mb-1.5">Skola</label>
-                <input value={skola} onChange={e => setSkola(e.target.value)} required placeholder="Lernia Yrkeshögskola" className={field} />
+                <label className="block text-sm mb-1.5">Utbildningsanordnare</label>
+                <select value={skolId} onChange={e => setSkolId(e.target.value)} className={field}>
+                  <option value="">Ny utbildningsanordnare</option>
+                  {skolor.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{s.status !== 'godkänd' ? ' (väntar på godkännande)' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -143,7 +187,24 @@ export default function UtbildningarPage() {
             </button>
           </form>
         )}
-
+            {!skolId && (
+              <div className="grid sm:grid-cols-2 gap-4 border-t border-line pt-4">
+                <div>
+                  <label className="block text-sm mb-1.5">Namn på anordnaren</label>
+                  <input value={nySkola} onChange={e => setNySkola(e.target.value)} required={!skolId}
+                    placeholder="Yrkeshögskolan i Malmö" className={field} />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1.5">Organisationsnummer</label>
+                  <input value={nyOrgNr} onChange={e => setNyOrgNr(e.target.value)}
+                    placeholder="556123-4567" className={field} />
+                </div>
+                <p className="text-muted text-xs sm:col-span-2">
+                  En ny anordnare måste godkännas innan utbildningen kan användas.
+                  Godkännandet sker när biträdesavtalet är tecknat.
+                </p>
+              </div>
+            )}
         <div className="space-y-3">
           {rader.map(e => (
             <article key={e.id} className="bg-card border border-line rounded-xl p-5">
