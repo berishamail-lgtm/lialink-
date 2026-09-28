@@ -11,7 +11,7 @@ const statusText: Record<string, string> = {
   'avvisad': 'Avvisad',
 }
 
-const statusStyle: Record<string, string> = {
+const statusStil: Record<string, string> = {
   'väntar':  'bg-warn/10 text-warn',
   'godkänd': 'bg-ok/10 text-ok',
   'pausad':  'bg-muted/10 text-muted',
@@ -19,15 +19,16 @@ const statusStyle: Record<string, string> = {
 }
 
 export default function AdminPage() {
-  const [profile, setProfile]       = useState<any>(null)
-  const [educations, setEducations] = useState<any[]>([])
-  const [stats, setStats]           = useState<any>({})
-  const [loading, setLoading]       = useState(true)
-  const [busy, setBusy]             = useState('')
-  const [error, setError]           = useState('')
-  const [open, setOpen]             = useState('')
-  const [avtal, setAvtal]           = useState('')
-  const [note, setNote]             = useState('')
+  const [profile, setProfile]      = useState<any>(null)
+  const [skolor, setSkolor]        = useState<any[]>([])
+  const [utbildningar, setUtb]     = useState<Record<string, any[]>>({})
+  const [antalStudenter, setAntal] = useState<Record<string, number>>({})
+  const [loading, setLoading]      = useState(true)
+  const [busy, setBusy]            = useState('')
+  const [error, setError]          = useState('')
+  const [oppen, setOppen]          = useState('')
+  const [avtal, setAvtal]          = useState('')
+  const [note, setNote]            = useState('')
 
   const supabase = createClient()
   const router   = useRouter()
@@ -44,65 +45,75 @@ export default function AdminPage() {
 
     if (!prof?.is_admin) { setLoading(false); return }
 
+    const { data: sk } = await supabase
+      .from('schools').select('*').order('created_at', { ascending: false })
+    setSkolor(sk || [])
+
     const { data: edus } = await supabase
       .from('educations')
       .select('*, profiles:user_id(full_name, email)')
-      .order('created_at', { ascending: false })
-    setEducations(edus || [])
+      .order('program_name')
 
-    // Räkna per utbildning
-    const ids = (edus || []).map(e => e.id)
-    const räkning: any = {}
+    const um: Record<string, any[]> = {}
+    for (const e of edus || []) {
+      const nyckel = e.school_id || 'utan'
+      um[nyckel] = um[nyckel] || []
+      um[nyckel].push(e)
+    }
+    setUtb(um)
 
-    if (ids.length) {
+    const eduIds = (edus || []).map(e => e.id)
+    if (eduIds.length) {
       const { data: cls } = await supabase
-        .from('classes').select('id, education_id').in('education_id', ids)
-
-      for (const c of cls || []) {
-        räkning[c.education_id] = räkning[c.education_id] || { klasser: 0, studenter: 0 }
-        räkning[c.education_id].klasser++
-      }
-
+        .from('classes').select('id, education_id').in('education_id', eduIds)
       const classIds = (cls || []).map(c => c.id)
+
       if (classIds.length) {
         const { data: studs } = await supabase
           .from('students').select('class_id').in('class_id', classIds)
 
+        const per: Record<string, number> = {}
         for (const s of studs || []) {
-          const eduId = (cls || []).find(c => c.id === s.class_id)?.education_id
-          if (eduId && räkning[eduId]) räkning[eduId].studenter++
+          const eduId  = (cls || []).find(c => c.id === s.class_id)?.education_id
+          const skolId = (edus || []).find(e => e.id === eduId)?.school_id
+          if (skolId) per[skolId] = (per[skolId] || 0) + 1
         }
+        setAntal(per)
       }
     }
 
-    setStats(räkning)
     setLoading(false)
   }
 
-  async function sattStatus(id: string, status: string) {
-    setBusy(id)
+  async function sattStatus(skola: any, status: string) {
+    setBusy(skola.id)
     setError('')
 
     const payload: any = { status }
     if (status === 'godkänd') {
-      payload.godkand_av  = profile.id
-      payload.godkand_at  = new Date().toISOString()
+      payload.godkand_av = profile.id
+      payload.godkand_at = new Date().toISOString()
       if (avtal) payload.avtal_tecknat = avtal
     }
     if (note.trim()) payload.admin_note = note.trim()
 
     const { error: err } = await supabase
-      .from('educations').update(payload).eq('id', id)
+      .from('schools').update(payload).eq('id', skola.id)
+
+    if (err) { setError(err.message); setBusy(''); return }
+
+    await supabase.from('educations')
+      .update({ status })
+      .eq('school_id', skola.id)
 
     setBusy('')
-    if (err) { setError(err.message); return }
-
-    setOpen(''); setAvtal(''); setNote('')
+    setOppen(''); setAvtal(''); setNote('')
     load()
   }
 
   const field = 'w-full bg-paper border border-line rounded-lg px-4 py-2.5 text-sm outline-none focus:border-text/40 transition'
-  const vantar = educations.filter(e => e.status === 'väntar')
+  const vantar = skolor.filter(s => s.status === 'väntar')
+  const utanSkola = utbildningar['utan'] || []
 
   if (loading) return (
     <div className="min-h-screen bg-paper flex items-center justify-center">
@@ -129,10 +140,9 @@ export default function AdminPage() {
       <Sidebar role="education" name={profile?.full_name} subtitle="Administratör" />
 
       <main className="flex-1 p-5 sm:p-8 max-w-4xl">
-        <h1 className="text-2xl sm:text-3xl mb-1">Anslutna utbildningar</h1>
+        <h1 className="text-2xl sm:text-3xl mb-1">Anslutna utbildningsanordnare</h1>
         <p className="text-muted text-sm mb-7">
-          En utbildning kan inte skapa klasser förrän den godkänts. Godkänn först
-          när biträdesavtalet är påskrivet.
+          Avtalet tecknas med anordnaren. Alla deras utbildningar följer skolans status.
         </p>
 
         {error && (
@@ -144,7 +154,7 @@ export default function AdminPage() {
         {vantar.length > 0 && (
           <div className="bg-warn/8 border border-warn/25 rounded-xl px-5 py-4 mb-6">
             <p className="text-sm">
-              <strong>{vantar.length} {vantar.length === 1 ? 'utbildning väntar' : 'utbildningar väntar'}</strong> på
+              <strong>{vantar.length} {vantar.length === 1 ? 'anordnare väntar' : 'anordnare väntar'}</strong> på
               godkännande.
             </p>
           </div>
@@ -152,119 +162,131 @@ export default function AdminPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-7">
           {[
-            { n: educations.length,                                       label: 'utbildningar totalt' },
-            { n: educations.filter(e => e.status === 'godkänd').length,   label: 'godkända' },
-            { n: vantar.length,                                            label: 'väntar' },
-            { n: Object.values(stats).reduce((a: any, s: any) => a + s.studenter, 0), label: 'studenter totalt' },
+            { n: skolor.length, label: 'anordnare totalt' },
+            { n: skolor.filter(s => s.status === 'godkänd').length, label: 'godkända' },
+            { n: Object.values(utbildningar).reduce((a, b) => a + b.length, 0), label: 'utbildningar' },
+            { n: Object.values(antalStudenter).reduce((a, b) => a + b, 0), label: 'studenter' },
           ].map((s, i) => (
             <div key={i} className="bg-card border border-line rounded-xl p-5">
-              <p className="font-display text-3xl font-extrabold">{s.n as any}</p>
+              <p className="font-display text-3xl font-extrabold">{s.n}</p>
               <p className="text-muted text-sm mt-1 leading-snug">{s.label}</p>
             </div>
           ))}
         </div>
 
-        {educations.length === 0 ? (
+        {skolor.length === 0 ? (
           <div className="bg-card border border-line rounded-xl p-12 text-center">
-            <p className="mb-1">Inga utbildningar än</p>
+            <p className="mb-1">Inga anordnare än</p>
             <p className="text-muted text-sm">
-              Utbildningar dyker upp här när någon registrerar sig som utbildningsledare.
+              De dyker upp här när någon registrerar en utbildning.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {educations.map(e => {
-              const s = stats[e.id] || { klasser: 0, studenter: 0 }
-              return (
-                <article key={e.id} className="bg-card border border-line rounded-xl p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="text-base">{e.school_name}</h2>
-                      <p className="text-muted text-sm mt-0.5">
-                        {e.program_name}{e.city ? ', ' + e.city : ''}
-                      </p>
-                      <p className="text-muted text-sm mt-1">
-                        {e.profiles?.full_name}, {e.profiles?.email}
-                      </p>
-                      <p className="text-muted text-sm mt-1">
-                        {s.klasser} {s.klasser === 1 ? 'klass' : 'klasser'}, {s.studenter} {s.studenter === 1 ? 'student' : 'studenter'}
-                      </p>
-                      {e.avtal_tecknat && (
-                        <p className="text-muted text-sm mt-1">
-                          Biträdesavtal tecknat {e.avtal_tecknat}
-                        </p>
-                      )}
-                      {e.admin_note && (
-                        <p className="text-sm mt-2 leading-relaxed">{e.admin_note}</p>
-                      )}
-                    </div>
+            {skolor.map(s => {
+              const edus = utbildningar[s.id] || []
+              const studenter = antalStudenter[s.id] || 0
 
-                    <div className="flex flex-col items-end gap-2 shrink-0">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[e.status]}`}>
-                        {statusText[e.status]}
-                      </span>
+              return (
+                <article key={s.id} className="bg-card border border-line rounded-xl overflow-hidden">
+                  <div className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-base">{s.name}</h2>
+                          <span className={'rounded-full px-2.5 py-0.5 text-xs font-medium ' + statusStil[s.status]}>
+                            {statusText[s.status]}
+                          </span>
+                        </div>
+                        {s.org_number && (
+                          <p className="text-muted text-sm mt-0.5">Org.nr {s.org_number}</p>
+                        )}
+                        <p className="text-muted text-sm mt-1">
+                          {edus.length} {edus.length === 1 ? 'utbildning' : 'utbildningar'},
+                          {' '}{studenter} {studenter === 1 ? 'student' : 'studenter'}
+                        </p>
+                        {s.avtal_tecknat && (
+                          <p className="text-muted text-sm">
+                            Biträdesavtal tecknat {s.avtal_tecknat}
+                          </p>
+                        )}
+                        {s.admin_note && (
+                          <p className="text-sm mt-2 leading-relaxed">{s.admin_note}</p>
+                        )}
+                      </div>
+
                       <button
-                        onClick={() => { setOpen(open === e.id ? '' : e.id); setAvtal(e.avtal_tecknat || ''); setNote(e.admin_note || '') }}
-                        className="text-muted hover:text-text text-sm transition"
+                        onClick={() => {
+                          setOppen(oppen === s.id ? '' : s.id)
+                          setAvtal(s.avtal_tecknat || '')
+                          setNote(s.admin_note || '')
+                          setError('')
+                        }}
+                        className="text-muted hover:text-text text-sm transition shrink-0"
                       >
-                        {open === e.id ? 'Stäng' : 'Hantera'}
+                        {oppen === s.id ? 'Stäng' : 'Hantera'}
                       </button>
                     </div>
                   </div>
 
-                  {open === e.id && (
-                    <div className="border-t border-line mt-4 pt-4 space-y-4">
+                  {oppen === s.id && (
+                    <div className="border-t border-line bg-paper/50 p-5 space-y-5">
+                      {edus.length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium mb-2">Utbildningar</p>
+                          <div className="border border-line rounded-lg divide-y divide-line bg-card">
+                            {edus.map(e => (
+                              <div key={e.id} className="px-4 py-3">
+                                <p className="text-sm">{e.program_name}</p>
+                                <p className="text-muted text-xs mt-0.5">
+                                  {e.profiles?.full_name}, {e.profiles?.email}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm mb-1.5">Biträdesavtal tecknat</label>
-                          <input type="date" value={avtal} onChange={ev => setAvtal(ev.target.value)} className={field} />
+                          <input type="date" value={avtal} onChange={e => setAvtal(e.target.value)} className={field} />
                         </div>
                         <div>
                           <label className="block text-sm mb-1.5">Anteckning</label>
-                          <input value={note} onChange={ev => setNote(ev.target.value)} placeholder="Kontaktperson, villkor, annat" className={field} />
+                          <input value={note} onChange={e => setNote(e.target.value)}
+                            placeholder="Kontaktperson, villkor, annat" className={field} />
                         </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        {e.status !== 'godkänd' && (
-                          <button
-                            onClick={() => sattStatus(e.id, 'godkänd')}
-                            disabled={busy === e.id || !avtal}
-                            className="bg-ok text-white rounded-full px-5 py-2 text-sm font-medium hover:opacity-85 transition disabled:opacity-30"
-                          >
+                        {s.status !== 'godkänd' && (
+                          <button onClick={() => sattStatus(s, 'godkänd')} disabled={busy === s.id || !avtal}
+                            className="bg-ok text-white rounded-full px-5 py-2 text-sm font-medium hover:opacity-85 transition disabled:opacity-30">
                             Godkänn
                           </button>
                         )}
-                        {e.status === 'godkänd' && (
-                          <button
-                            onClick={() => sattStatus(e.id, 'pausad')}
-                            disabled={busy === e.id}
-                            className="border border-line rounded-full px-5 py-2 text-sm text-muted hover:border-text/30 transition"
-                          >
-                            Pausa
-                          </button>
+                        {s.status === 'godkänd' && (
+                          <>
+                            <button onClick={() => sattStatus(s, 'godkänd')} disabled={busy === s.id}
+                              className="border border-line rounded-full px-5 py-2 text-sm text-muted hover:border-text/30 transition">
+                              Spara ändringar
+                            </button>
+                            <button onClick={() => sattStatus(s, 'pausad')} disabled={busy === s.id}
+                              className="border border-line rounded-full px-5 py-2 text-sm text-muted hover:border-text/30 transition">
+                              Pausa
+                            </button>
+                          </>
                         )}
-                        {e.status !== 'avvisad' && (
-                          <button
-                            onClick={() => sattStatus(e.id, 'avvisad')}
-                            disabled={busy === e.id}
-                            className="border border-alert/40 text-alert rounded-full px-5 py-2 text-sm hover:bg-alert/5 transition"
-                          >
+                        {s.status !== 'avvisad' && (
+                          <button onClick={() => sattStatus(s, 'avvisad')} disabled={busy === s.id}
+                            className="border border-alert/40 text-alert rounded-full px-5 py-2 text-sm hover:bg-alert/5 transition">
                             Avvisa
-                          </button>
-                        )}
-                        {e.status === 'godkänd' && (
-                          <button
-                            onClick={() => sattStatus(e.id, 'godkänd')}
-                            disabled={busy === e.id}
-                            className="border border-line rounded-full px-5 py-2 text-sm text-muted hover:border-text/30 transition"
-                          >
-                            Spara ändringar
                           </button>
                         )}
                       </div>
 
-                      {!avtal && e.status !== 'godkänd' && (
+                      {!avtal && s.status !== 'godkänd' && (
                         <p className="text-muted text-sm">
                           Ange datum för biträdesavtalet innan du godkänner.
                         </p>
@@ -275,6 +297,25 @@ export default function AdminPage() {
               )
             })}
           </div>
+        )}
+
+        {utanSkola.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-base mb-1">Utbildningar utan anordnare</h2>
+            <p className="text-muted text-sm mb-4">
+              Skapade innan anordnare infördes. Behöver kopplas manuellt.
+            </p>
+            <div className="bg-card border border-line rounded-xl divide-y divide-line">
+              {utanSkola.map(e => (
+                <div key={e.id} className="px-5 py-4">
+                  <p className="text-sm">{e.program_name}</p>
+                  <p className="text-muted text-sm mt-0.5">
+                    {e.school_name}, {e.profiles?.email}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
       </main>
     </div>
