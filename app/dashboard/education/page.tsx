@@ -14,10 +14,11 @@ export default function EducationDashboard() {
   const [matching, setMatching]   = useState(false)
   const supabase = createClient()
   const router   = useRouter()
-  const { current } = useEdu()
+  const { current, loading: eduLoading, fel: eduFel } = useEdu()
 
   useEffect(() => {
-    if (!current) return
+    if (eduLoading) return
+    if (!current) { setLoading(false); return }
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
@@ -104,7 +105,19 @@ export default function EducationDashboard() {
     { label: 'Matchad',            count: groups.matchad.length, color: 'bg-warn' },
     { label: 'Söker fortfarande',  count: groups.soker.length,   color: 'bg-alert' },
   ]
-
+  if (!eduLoading && !current) return (
+    <div className="min-h-screen bg-paper flex items-center justify-center p-4">
+      <div className="bg-card border border-line rounded-xl p-8 max-w-md text-center text-text">
+        <p className="mb-1">Ingen utbildning upplagd</p>
+        <p className="text-muted text-sm mb-5">
+          {eduFel || 'Lägg upp din utbildning så kommer du igång.'}
+        </p>
+        <a href="/dashboard/utbildningar" className="inline-block bg-text text-paper rounded-full px-6 py-2.5 text-sm font-medium">
+          Mina utbildningar
+        </a>
+      </div>
+    </div>
+  )
   if (loading) return (
     <div className="min-h-screen bg-paper flex items-center justify-center">
       <p className="text-muted text-sm">Laddar</p>
