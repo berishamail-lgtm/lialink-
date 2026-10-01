@@ -49,7 +49,7 @@ export default function NatverkPage() {
 
   const supabase = createClient()
   const router   = useRouter()
-  const { current } = useEdu()
+  const { current, loading: eduLoading } = useEdu()
   const [statusFilter, setStatusFilter] = useState('alla')
   const [sidor, setSidor] = useState(1)
   const [senasteSvar, setSenasteSvar] = useState<Record<string, string>>({})
@@ -58,7 +58,11 @@ export default function NatverkPage() {
   const [lDatum, setLDatum]   = useState('')
   const [lText, setLText]     = useState('')
 
-  useEffect(() => { if (current) load() }, [current?.id])
+  useEffect(() => {
+    if (eduLoading) return
+    if (!current) { setLoading(false); return }
+    load()
+  }, [current?.id, eduLoading])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()

@@ -48,9 +48,13 @@ export default function StudentsPage() {
 
   const supabase = createClient()
   const router   = useRouter()
-  const { current } = useEdu()
+  const { current, loading: eduLoading } = useEdu()
 
-  useEffect(() => { if (current) load() }, [current?.id])
+  useEffect(() => {
+    if (eduLoading) return
+    if (!current) { setLoading(false); return }
+    load()
+  }, [current?.id, eduLoading])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
