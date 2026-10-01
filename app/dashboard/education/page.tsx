@@ -65,7 +65,7 @@ export default function EducationDashboard() {
       setLoading(false)
     }
     load()
-  }, [current?.id])
+  }, [current?.id, eduLoading])
 
   async function runMatching() {
     setMatching(true)
