@@ -26,61 +26,64 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let avbruten = false
 
-    async function load() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { if (!avbruten) setLoading(false); return }
+    async function hamta(userId: string) {
+      const { data: prof } = await supabase
+        .from('profiles').select('role').eq('id', userId).maybeSingle()
 
-        const { data: prof } = await supabase
-          .from('profiles').select('role').eq('id', user.id).maybeSingle()
-                  console.log('EduContext: user', user.id, 'roll', prof?.role)
+      if (avbruten) return
 
-        // Bara utbildningsledare behöver utbildningar
-        if (prof?.role !== 'education') {
-          if (!avbruten) setLoading(false)
-          return
-        }
+      if (prof?.role !== 'education') { setLoading(false); return }
 
-        const { data, error } = await supabase
-          .from('educations')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('active', true)
-          .order('program_name')
-          console.log('EduContext: utbildningar', data?.length, 'fel', error?.message)
+      const { data, error } = await supabase
+        .from('educations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('active', true)
+        .order('program_name')
 
-        if (avbruten) return
+      if (avbruten) return
 
-        if (error) {
-          setFel('Kunde inte hämta dina utbildningar. Ladda om sidan.')
-          setLoading(false)
-          return
-        }
-
-        const lista = data || []
-        setEducations(lista)
-
-        const sparad = typeof window !== 'undefined'
-          ? localStorage.getItem('lialink-edu')
-          : null
-        setCurrentState(lista.find(e => e.id === sparad) || lista[0] || null)
+      if (error) {
+        setFel('Kunde inte hämta dina utbildningar. Ladda om sidan.')
         setLoading(false)
-      } catch (e) {
-        if (!avbruten) {
-          setFel('Något gick fel vid inläsningen. Ladda om sidan.')
-          setLoading(false)
-        }
+        return
       }
+
+      const lista = data || []
+      setEducations(lista)
+
+      const sparad = typeof window !== 'undefined'
+        ? localStorage.getItem('lialink-edu')
+        : null
+      setCurrentState(lista.find(e => e.id === sparad) || lista[0] || null)
+      setLoading(false)
     }
 
-    load()
+    // Kör direkt om sessionen redan finns
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (avbruten) return
+      if (session?.user) hamta(session.user.id)
+      else setLoading(false)
+    })
 
-    // Säkerhetsnät: fastna aldrig i laddningsläge
-    const timeout = setTimeout(() => {
-      if (!avbruten) setLoading(false)
-    }, 8000)
+    // Och när den återställs eller ändras
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (avbruten) return
+      if (session?.user) hamta(session.user.id)
+      else {
+        setEducations([])
+        setCurrentState(null)
+        setLoading(false)
+      }
+    })
 
-    return () => { avbruten = true; clearTimeout(timeout) }
+    const timeout = setTimeout(() => { if (!avbruten) setLoading(false) }, 8000)
+
+    return () => {
+      avbruten = true
+      clearTimeout(timeout)
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
   function setCurrent(e: any) {
