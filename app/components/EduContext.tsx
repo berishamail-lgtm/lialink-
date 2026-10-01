@@ -33,6 +33,7 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
 
         const { data: prof } = await supabase
           .from('profiles').select('role').eq('id', user.id).maybeSingle()
+                  console.log('EduContext: user', user.id, 'roll', prof?.role)
 
         // Bara utbildningsledare behöver utbildningar
         if (prof?.role !== 'education') {
@@ -46,6 +47,7 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
           .eq('user_id', user.id)
           .eq('active', true)
           .order('program_name')
+          console.log('EduContext: utbildningar', data?.length, 'fel', error?.message)
 
         if (avbruten) return
 
