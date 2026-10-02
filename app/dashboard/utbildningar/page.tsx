@@ -36,9 +36,19 @@ export default function UtbildningarPage() {
       .from('profiles').select('*').eq('id', user.id).single()
     setProfile(prof)
 
-    const { data } = await supabase
-      .from('educations').select('*').eq('user_id', user.id).order('program_name')
-    setRader(data || [])
+    const { data: uppdrag } = await supabase
+      .from('education_staff').select('education_id, roll')
+      .eq('user_id', user.id).eq('aktiv', true)
+
+    const ids = (uppdrag || []).map(u => u.education_id)
+    console.log('Utbildningar: uppdrag', uppdrag?.length, 'ids', ids)
+    if (ids.length) {
+      const { data } = await supabase
+        .from('educations').select('*').in('id', ids).order('program_name')
+      setRader(data || [])
+    } else {
+      setRader([])
+    }
         const { data: sk } = await supabase
       .from('schools').select('*').order('name')
     setSkolor(sk || [])
@@ -63,15 +73,26 @@ export default function UtbildningarPage() {
         return
       }
 
-      const { data: fanns } = await supabase
-        .from('schools').select('id').ilike('name', nySkola.trim()).maybeSingle()
+      const rensatNr = nyOrgNr.replace(/[^0-9]/g, '')
+
+      let { data: fanns } = await supabase
+        .from('schools').select('id').eq('org_number', rensatNr).maybeSingle()
+
+      if (!fanns) {
+        const { data: viaNamn } = await supabase
+          .from('schools').select('id').ilike('name', nySkola.trim()).maybeSingle()
+        fanns = viaNamn
+      }
 
       if (fanns) {
         valdSkola = fanns.id
       } else {
         const { data: ny, error: skErr } = await supabase
           .from('schools')
-          .insert({ name: nySkola.trim(), org_number: nyOrgNr.trim() || null })
+          .insert({
+            name: nySkola.trim(),
+            org_number: nyOrgNr.replace(/[^0-9]/g, '') || null,
+          })
           .select('id').single()
 
         if (skErr) { setError(skErr.message); setBusy(false); return }
@@ -82,7 +103,7 @@ export default function UtbildningarPage() {
     const skola = skolor.find(s => s.id === valdSkola)
     const forsta = rader[0]
 
-    const { error: err } = await supabase.from('educations').insert({
+    const { data: nyEdu, error: err } = await supabase.from('educations').insert({
       user_id:       profile.id,
       school_id:     valdSkola,
       program_name:  program.trim(),
@@ -92,11 +113,17 @@ export default function UtbildningarPage() {
       phone:         phone.trim() || forsta?.phone || null,
       contact_phone: forsta?.contact_phone || null,
       villkor_text:  forsta?.villkor_text || null,
-    })
+    }).select('id').single()
 
     setBusy(false)
     if (err) { setError(err.message); return }
-
+    if (nyEdu) {
+      await supabase.from('education_staff').insert({
+        education_id: nyEdu.id,
+        user_id: profile.id,
+        roll: 'ansvarig',
+      })
+    }
     setProgram(''); setSkola(''); setCity(''); setOrgNr(''); setPhone('')
     setNySkola(''); setNyOrgNr('')
     setShow(false)
@@ -197,7 +224,7 @@ export default function UtbildningarPage() {
                 <div>
                   <label className="block text-sm mb-1.5">Organisationsnummer</label>
                   <input value={nyOrgNr} onChange={e => setNyOrgNr(e.target.value)}
-                    placeholder="556123-4567" className={field} />
+                    required={!skolId} placeholder="556123-4567" className={field} />
                 </div>
                 <p className="text-muted text-xs sm:col-span-2">
                   En ny anordnare måste godkännas innan utbildningen kan användas.
