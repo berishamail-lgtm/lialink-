@@ -47,6 +47,8 @@ export default function Sidebar({ role = 'student', name, subtitle }: Props) {
   const { educations, current, setCurrent } = useEdu()
 
   const items = [...(menus[role] ?? menus.student)]
+  const baraNatverk = (current as any)?.endast_natverk
+  const synligaItems = baraNatverk ? items.filter(i => i.href === '/dashboard/natverk') : items
 
   useEffect(() => {
     async function kolla() {
@@ -92,7 +94,7 @@ export default function Sidebar({ role = 'student', name, subtitle }: Props) {
       )}
 
       <nav className="flex lg:flex-col gap-1 px-3 overflow-x-auto lg:overflow-visible lg:flex-1">
-        {items.map(item => (
+        {synligaItems.map(item => (
           <Link
             key={item.href}
             href={item.href}

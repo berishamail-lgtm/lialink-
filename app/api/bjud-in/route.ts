@@ -16,7 +16,36 @@ export async function POST(req: NextRequest) {
 
   if (!co)                return NextResponse.json({ error: 'Företaget hittades inte' }, { status: 404 })
   if (co.claimed)         return NextResponse.json({ error: 'Företaget har redan ett konto' }, { status: 400 })
-  if (!co.contact_email)  return NextResponse.json({ error: 'Ingen e-postadress på företaget' }, { status: 400 })
+  // Hämta e-post från kontaktpersonerna om företaget saknar egen
+  let epost = co.contact_email
+  let mottagarNamn = co.contact_name
+
+  if (!epost && educationId) {
+    const { data: eduRad } = await supabase
+      .from('educations').select('school_id').eq('id', educationId).maybeSingle()
+
+    const { data: partner } = await supabase
+      .from('education_partners').select('id')
+      .eq('company_id', companyId)
+      .or('school_id.eq.' + (eduRad?.school_id || educationId) + ',education_id.eq.' + educationId)
+      .maybeSingle()
+
+    if (partner) {
+      const { data: kont } = await supabase
+        .from('partner_contacts').select('name, email')
+        .eq('partner_id', partner.id).eq('aktiv', true)
+        .not('email', 'is', null).limit(1).maybeSingle()
+
+      if (kont) { epost = kont.email; mottagarNamn = kont.name }
+    }
+  }
+
+  if (!epost) {
+    return NextResponse.json(
+      { error: 'Ingen e-postadress. Lägg till en kontaktperson med e-post först.' },
+      { status: 400 }
+    )
+  }
 
   const { data: edu } = await supabase
     .from('educations').select('*, profiles:user_id(full_name)')
@@ -24,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   const { data: invite, error } = await supabase
     .from('company_invites')
-    .insert({ company_id: companyId, education_id: educationId, email: co.contact_email })
+    .insert({ company_id: companyId, education_id: educationId, email: epost })
     .select('token').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -61,7 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     await resend.emails.send({
       from: 'LIAlink <noreply@lialink.se>',
-      to: co.contact_email,
+      to: epost,
       subject: `Inbjudan att ta emot LIA-studenter från ${edu?.school_name || 'skolan'}`,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
       html,
@@ -70,5 +99,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, email: co.contact_email })
+  return NextResponse.json({ ok: true, email: epost })
 }

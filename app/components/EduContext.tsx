@@ -34,10 +34,49 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
 
       if (prof?.role !== 'education') { setLoading(false); return }
 
+      const { data: uppdrag } = await supabase
+        .from('education_staff')
+        .select('education_id')
+        .eq('user_id', userId)
+        .eq('aktiv', true)
+
+      const ids = (uppdrag || []).map(u => u.education_id)
+
+      if (!ids.length) {
+        // Personal kopplad till skolan utan egen utbildning
+        const { data: skolUppdrag } = await supabase
+          .from('school_staff')
+          .select('school_id, schools(id, name)')
+          .eq('user_id', userId)
+          .eq('aktiv', true)
+          .maybeSingle()
+
+        if (skolUppdrag) {
+          const skola = Array.isArray((skolUppdrag as any).schools)
+            ? (skolUppdrag as any).schools[0]
+            : (skolUppdrag as any).schools
+
+          setEducations([])
+          setCurrentState({
+            id: null,
+            school_id: skolUppdrag.school_id,
+            program_name: skola?.name || 'Företagsnätverk',
+            endast_natverk: true,
+          })
+          setLoading(false)
+          return
+        }
+
+        setEducations([])
+        setCurrentState(null)
+        setLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from('educations')
         .select('*')
-        .eq('user_id', userId)
+        .in('id', ids)
         .eq('active', true)
         .order('program_name')
 
