@@ -7,7 +7,7 @@ import { useEdu } from '../../components/EduContext'
 
 const statusStyle: Record<string, string> = {
   'söker':      'bg-alert/10 text-alert',
-  'förslag':    'bg-warn/10 text-warn',
+  'förslag':    'bg-accent/10 text-accent',
   'matchad':    'bg-warn/10 text-warn',
   'avtal':      'bg-[#2563eb]/10 text-[#2563eb]',
   'aktiv':      'bg-ok/10 text-ok',
@@ -27,6 +27,7 @@ export default function StudentsPage() {
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState('')
   const [klart, setKlart]             = useState('')
+  const [anmalningar, setAnmalningar] = useState<any[]>([])
 
   // Lägg till student
   const [visaForm, setVisaForm] = useState(false)
@@ -93,6 +94,16 @@ export default function StudentsPage() {
           .from('placements')
           .select('id, student_id, lia_period_id, status, companies(company_name)')
           .in('lia_period_id', periodIds)
+                  const plIds = (pl || []).map(x => x.id)
+        if (plIds.length) {
+          const { data: anm } = await supabase
+            .from('platsanmalan')
+            .select('*, companies(company_name, city)')
+            .in('placement_id', plIds)
+            .eq('status', 'ny')
+            .order('skapad_at', { ascending: false })
+          setAnmalningar(anm || [])
+        }
         setPlaceringar(pl || [])
       } else setPlaceringar([])
     } else {
@@ -210,6 +221,40 @@ export default function StudentsPage() {
 
         {error && (
           <p className="bg-alert/10 border border-alert/25 text-alert text-sm rounded-lg px-4 py-3 mb-5">{error}</p>
+        )}
+                {anmalningar.length > 0 && (
+          <div className="bg-accent/8 border border-accent/25 rounded-xl p-5 mb-5">
+            <p className="text-sm font-medium mb-1">
+              {anmalningar.length} {anmalningar.length === 1 ? 'företag väntar' : 'företag väntar'} på avtal
+            </p>
+            <p className="text-muted text-sm mb-3">
+              De har anmält att de tar emot. Skapa avtalet så kan alla signera.
+            </p>
+            <div className="space-y-2">
+              {anmalningar.map(a => {
+                const pl = placeringar.find(p => p.id === a.placement_id)
+                const st = students.find(s => s.id === pl?.student_id)
+                const per = perioder.find(p => p.id === pl?.lia_period_id)
+                return (
+                  <div key={a.id} className="bg-card border border-line rounded-lg px-4 py-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-sm">
+                        <strong>{a.companies?.company_name}</strong> tar emot {st?.profiles?.full_name}
+                      </span>
+                      <span className="text-muted text-sm">{per?.name}</span>
+                    </div>
+                    {a.meddelande && (
+                      <p className="text-muted text-sm mt-1">{a.meddelande}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <a href="/dashboard/agreements/skapa"
+              className="inline-block bg-accent text-white rounded-full px-5 py-2 text-sm font-medium hover:opacity-85 transition mt-3">
+              Skapa avtal
+            </a>
+          </div>
         )}
         {klart && (
           <p className="bg-ok/10 border border-ok/25 text-ok text-sm rounded-lg px-4 py-3 mb-5">{klart}</p>
@@ -393,7 +438,9 @@ export default function StudentsPage() {
                               {pl.status}
                             </span>
                             {pl.companies?.company_name && (
-                              <p className="text-muted text-xs mt-1">{pl.companies.company_name}</p>
+                              <p className={'text-xs mt-1 ' + (pl.status === 'förslag' ? 'text-accent font-medium' : 'text-muted')}>
+                                {pl.companies.company_name}
+                              </p>
                             )}
                             {urgent && <p className="text-alert text-xs mt-1">{w} v kvar</p>}
                             {kanPlacera && (
@@ -434,6 +481,9 @@ export default function StudentsPage() {
                             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[pl.status] || 'bg-muted/10 text-muted'}`}>
                               {pl.status}
                             </span>
+                                                        {pl.companies?.company_name && (
+                              <span className="text-muted text-xs">{pl.companies.company_name}</span>
+                            )}
                             {kanPlacera && (
                               <button onClick={() => oppnaPlacera(s, p, pl)} className="text-muted text-xs underline underline-offset-2">
                                 Placera
