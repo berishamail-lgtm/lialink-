@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -102,7 +102,7 @@ export default function StudentProfil() {
       await supabase.from('students').update(payload).eq('user_id', userId)
     } else {
       const { data: created } = await supabase
-        .from('students').insert({ ...payload, user_id: userId, status: 'sÃ¶ker' })
+        .from('students').insert({ ...payload, user_id: userId, status: 'söker' })
         .select('id').single()
       studentId = created?.id
     }
@@ -113,7 +113,7 @@ export default function StudentProfil() {
 
       for (const p of perioder || []) {
         await supabase.from('placements')
-          .insert({ student_id: studentId, lia_period_id: p.id, status: 'sÃ¶ker' })
+          .insert({ student_id: studentId, lia_period_id: p.id, status: 'söker' })
           .select()
       }
     }
