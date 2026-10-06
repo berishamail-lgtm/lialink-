@@ -25,8 +25,12 @@ export default function PlaneringPage() {
 
   useEffect(() => {
     if (eduLoading) return
-    if (!current) { setLoading(false); return }
-    load()
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) { router.push('/login'); return }
+      if (!current) { setLoading(false); return }
+      load()
+    })
   }, [current?.id, eduLoading])
 
   async function load() {
