@@ -236,7 +236,7 @@ export default function StudentsPage() {
                 const st = students.find(s => s.id === pl?.student_id)
                 const per = perioder.find(p => p.id === pl?.lia_period_id)
                 return (
-                  <div key={a.id} className="bg-card border border-line rounded-lg px-4 py-3">
+                  <a key={a.id} href={'/dashboard/agreements/skapa?placering=' + a.placement_id} className="block bg-card border border-line rounded-lg px-4 py-3 hover:border-accent/40 transition">
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <span className="text-sm">
                         <strong>{a.companies?.company_name}</strong> tar emot {st?.profiles?.full_name}
@@ -246,14 +246,11 @@ export default function StudentsPage() {
                     {a.meddelande && (
                       <p className="text-muted text-sm mt-1">{a.meddelande}</p>
                     )}
-                  </div>
+                  </a>
                 )
               })}
             </div>
-            <a href="/dashboard/agreements/skapa"
-              className="inline-block bg-accent text-white rounded-full px-5 py-2 text-sm font-medium hover:opacity-85 transition mt-3">
-              Skapa avtal
-            </a>
+            <p className="text-muted text-sm mt-3">Klicka på en rad för att skapa avtalet.</p>
           </div>
         )}
         {klart && (
