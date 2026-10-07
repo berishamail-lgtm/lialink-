@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Sidebar from '../../../components/Sidebar'
 import { useEdu } from '../../../components/EduContext'
 
@@ -12,7 +12,6 @@ export default function SkapaAvtal() {
   const [companies, setCompanies]   = useState<any[]>([])
 
   const [placementId, setPlacementId] = useState('')
-  const sokParams = useSearchParams()
   const [companyId, setCompanyId]     = useState('')
   const [start, setStart]             = useState('')
   const [end, setEnd]                 = useState('')
@@ -69,7 +68,9 @@ export default function SkapaAvtal() {
               .not('status', 'in', '("klar","avbruten")')
             setPlacements(pl || [])
 
-            const forvald = sokParams.get('placering')
+            const forvald = typeof window !== 'undefined'
+              ? new URLSearchParams(window.location.search).get('placering')
+              : null
             if (forvald && (pl || []).some((x: any) => x.id === forvald)) {
               setPlacementId(forvald)
             }
