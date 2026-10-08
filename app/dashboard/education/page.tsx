@@ -69,10 +69,27 @@ export default function EducationDashboard() {
 
   async function runMatching() {
     setMatching(true)
-    const res  = await fetch('/api/match', { method: 'POST' })
+      const res = await fetch('/api/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ educationId: current.id }),
+      })
     const data = await res.json()
     setMatching(false)
-    alert(data.message)
+
+      if (!res.ok) {
+        alert(data.error || 'Matchningen misslyckades')
+        return
+      }
+
+      const delar = []
+      delar.push(data.skapade + (data.skapade === 1 ? ' ny matchning' : ' nya matchningar'))
+      if (data.mejl > 0) {
+        delar.push(data.mejl + ' mejl skickade till ' + data.studenter + ' studerande och ' + data.foretag + ' företag')
+      } else {
+        delar.push('inga mejl skickade, inga nya träffar över 60%')
+      }
+      alert(delar.join('. ') + '.')
     window.location.reload()
   }
 
