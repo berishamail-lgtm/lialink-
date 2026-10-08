@@ -49,9 +49,17 @@ export default function Valkommen() {
 
     const userId = signUp.user?.id
     if (userId) {
-      await supabase.from('companies')
+      const { error: koppelFel } = await supabase.from('companies')
         .update({ user_id: userId, claimed: true })
         .eq('id', invite.company_id)
+        .select('id')
+        .single()
+
+      if (koppelFel) {
+        setError('Kontot skapades men kunde inte kopplas till företaget. Kontakta utbildningsledaren.')
+        setSaving(false)
+        return
+      }
 
       await supabase.from('company_invites')
         .update({ accepted_at: new Date().toISOString() })
