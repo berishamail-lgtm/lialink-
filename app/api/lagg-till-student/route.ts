@@ -109,7 +109,11 @@ export async function POST(req: NextRequest) {
           <a href="${url}" style="display:inline-block;background:#e8420a;color:#fff;text-decoration:none;padding:13px 26px;border-radius:100px;font-weight:bold;font-size:14px">
             Välj lösenord
           </a>
-          <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:24px 0 0">
+          <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:22px 0 0">
+            Fungerar inte knappen? Gå till lialink.se, klicka <strong>Glömt lösenordet</strong>
+            och ange din e-postadress, så får du en ny länk.
+          </p>
+          <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:14px 0 0">
             Du är kopplad till ${eduInfo?.program_name}, klass ${klass.name}.
           </p>
         </div>

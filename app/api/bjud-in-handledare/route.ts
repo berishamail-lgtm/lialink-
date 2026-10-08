@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
           Skapa ditt konto
         </a>
         <p style="font-size:13px;color:#6b6560;line-height:1.6;margin:24px 0 0">
-          Länken gäller i 30 dagar.
+          Länken gäller i 30 dagar.<br>
+          Fungerar inte länken, hör av dig till den som bjöd in dig.
         </p>
       </div>
     </div>
