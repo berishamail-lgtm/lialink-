@@ -97,6 +97,32 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Koppla kontot till handledarposten, så att hennes platser och
+  // placeringar hittar henne. Finns ingen post ännu skapas den.
+  const epost = (invite.email || '').trim()
+
+  if (epost) {
+    const { data: post } = await supabase
+      .from('handledare')
+      .select('id, user_id')
+      .eq('company_id', invite.company_id)
+      .ilike('email', epost)
+      .maybeSingle()
+
+    if (post) {
+      if (!post.user_id) {
+        await supabase.from('handledare').update({ user_id: userId }).eq('id', post.id)
+      }
+    } else {
+      await supabase.from('handledare').insert({
+        company_id: invite.company_id,
+        name:       invite.name || epost,
+        email:      epost,
+        user_id:    userId,
+      })
+    }
+  }
+
   await supabase
     .from('member_invites')
     .update({ accepted_at: new Date().toISOString() })

@@ -17,6 +17,7 @@ const menus: Record<string, { href: string; label: string }[]> = {
     { href: '/dashboard/planering',      label: 'Planering' },
     { href: '/dashboard/students',       label: 'Studenter' },
     { href: '/dashboard/natverk',        label: 'Företagsnätverk' },
+    { href: '/dashboard/handledare',     label: 'Handledare' },
     { href: '/dashboard/agreements',     label: 'Avtal' },
     { href: '/dashboard/utvarderingar',  label: 'Utvärderingar' },
     { href: '/dashboard/messages',       label: 'Meddelanden' },
@@ -31,7 +32,8 @@ const menus: Record<string, { href: string; label: string }[]> = {
   ],
   company: [
     { href: '/dashboard/company',            label: 'Kandidater' },
-    { href: '/dashboard/company/historik', label: 'Våra studenter' },
+    { href: '/dashboard/company/platser',    label: 'Våra LIA-platser' },
+    { href: '/dashboard/company/historik',   label: 'Våra studenter' },
     { href: '/dashboard/company/profil',     label: 'Företagsprofil' },
     { href: '/dashboard/company/handledare', label: 'Handledare' },
     { href: '/dashboard/agreements',         label: 'Avtal' },
@@ -48,7 +50,9 @@ export default function Sidebar({ role = 'student', name, subtitle }: Props) {
 
   const items = [...(menus[role] ?? menus.student)]
   const baraNatverk = (current as any)?.endast_natverk
-  const synligaItems = baraNatverk ? items.filter(i => i.href === '/dashboard/natverk') : items
+  const synligaItems = baraNatverk
+    ? items.filter(i => ['/dashboard/natverk', '/dashboard/handledare'].includes(i.href))
+    : items
 
   useEffect(() => {
     async function kolla() {
