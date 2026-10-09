@@ -48,24 +48,21 @@ export default function Valkommen() {
     if (authErr) { setError(authErr.message); setSaving(false); return }
 
     const userId = signUp.user?.id
-    if (userId) {
-      const { error: koppelFel } = await supabase.from('companies')
-        .update({ user_id: userId, claimed: true })
-        .eq('id', invite.company_id)
-        .select('id')
-        .single()
 
-      if (koppelFel) {
-        setError('Kontot skapades men kunde inte kopplas till företaget. Kontakta utbildningsledaren.')
+    if (userId) {
+      const res = await fetch('/api/koppla-foretag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, userId }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Kontot skapades men kunde inte kopplas till företaget.')
         setSaving(false)
         return
       }
-
-      await supabase.from('company_invites')
-        .update({ accepted_at: new Date().toISOString() })
-        .eq('id', invite.id)
     }
-
     router.push('/dashboard/company/profil')
   }
 
