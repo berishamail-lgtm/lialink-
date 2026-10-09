@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
+import { hamtaMittForetag } from '../../../lib/foretag'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../../components/Sidebar'
 
@@ -31,10 +32,10 @@ export default function HandledarePage() {
       .from('profiles').select('*').eq('id', user.id).single()
     setProfile(prof)
 
-    const { data: co } = await supabase
-      .from('companies').select('*').eq('user_id', user.id).maybeSingle()
+    const mitt = await hamtaMittForetag(supabase, user.id)
+    const co = mitt.company
     setCompany(co)
-    setIsAdmin(!!co)
+    setIsAdmin(mitt.farAdministrera)
 
     if (co) {
       const { data: m } = await supabase
@@ -117,7 +118,8 @@ export default function HandledarePage() {
         {!isAdmin && (
           <div className="bg-card border border-line rounded-xl p-6 mb-5">
             <p className="text-muted text-sm">
-              Bara den som registrerade företaget kan lägga till handledare.
+              Du ser vilka som är handledare hos {company?.company_name || 'företaget'}.
+              Att bjuda in eller ta bort gör den som registrerade företaget.
             </p>
           </div>
         )}

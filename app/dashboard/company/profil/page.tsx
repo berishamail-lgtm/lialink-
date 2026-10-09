@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase'
+import { hamtaMittForetag } from '../../../lib/foretag'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../../components/Sidebar'
 
@@ -17,6 +18,7 @@ export default function CompanyProfil() {
   const [userId, setUserId]   = useState('')
   const [companyId, setCompanyId] = useState('')
   const [profile, setProfile] = useState<any>(null)
+  const [farAdm, setFarAdm]   = useState(true)
 
   const [name, setName]       = useState('')
   const [orgNr, setOrgNr]     = useState('')
@@ -47,8 +49,9 @@ export default function CompanyProfil() {
         .from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
 
-      const { data: c } = await supabase
-        .from('companies').select('*').eq('user_id', user.id).maybeSingle()
+      const mitt = await hamtaMittForetag(supabase, user.id)
+      const c = mitt.company
+      setFarAdm(mitt.farAdministrera)
 
       if (c) {
         setCompanyId(c.id)
@@ -85,6 +88,11 @@ export default function CompanyProfil() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
+
+    // Bara ägaren eller en företagsadmin får spara. Utan den här spärren
+    // skulle en handledare utan companies-rad skapa ett dubblettföretag.
+    if (!farAdm) return
+
     setSaving(true)
 
     const payload = {
@@ -132,6 +140,32 @@ export default function CompanyProfil() {
   if (loading) return (
     <div className="min-h-screen bg-paper flex items-center justify-center">
       <p className="text-muted text-sm">Laddar</p>
+    </div>
+  )
+
+  if (!farAdm) return (
+    <div className="min-h-screen bg-paper text-text flex flex-col lg:flex-row">
+      <Sidebar role="company" name={profile?.full_name} subtitle={name} />
+      <main className="flex-1 p-5 sm:p-8 max-w-2xl">
+        <h1 className="text-2xl sm:text-3xl mb-1">Företagsprofil</h1>
+        <p className="text-muted text-sm mb-7">
+          {name || 'Företaget'} har redan en profil i LIAlink.
+        </p>
+        <div className="bg-card border border-line rounded-xl p-6">
+          <p className="mb-1">Du är handledare här</p>
+          <p className="text-muted text-sm leading-relaxed mb-4">
+            Profilen med ort, platser och LIA-perioder sköts av den som
+            registrerade {name || 'företaget'}. Behöver något ändras, hör av dig
+            till hen — då slipper ni två versioner av samma företag.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard/company')}
+            className="bg-text text-paper rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-85 transition"
+          >
+            Till dina studenter
+          </button>
+        </div>
+      </main>
     </div>
   )
 

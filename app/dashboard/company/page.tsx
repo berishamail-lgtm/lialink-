@@ -1,12 +1,15 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase'
+import { hamtaMittForetag } from '../../lib/foretag'
 import { useRouter } from 'next/navigation'
 import Sidebar from '../../components/Sidebar'
 
 export default function CompanyDashboard() {
   const [profile, setProfile] = useState<any>(null)
   const [company, setCompany] = useState<any>(null)
+  const [roll, setRoll]       = useState<string | null>(null)
+  const [medlemId, setMedlemId] = useState<string | null>(null)
   const [matches, setMatches] = useState<any[]>([])
   const [placed, setPlaced]   = useState<any[]>([])
   const [anmalan, setAnmalan] = useState<Record<string, string>>({})
@@ -20,35 +23,46 @@ export default function CompanyDashboard() {
   const supabase = createClient()
   const router   = useRouter()
 
+  // Handledare ser bara sina egna placeringar, inte kandidatlistan.
+  const barHandledare = roll === 'handledare'
+
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) { router.push('/login'); return }
 
     const { data: prof } = await supabase
-      .from('profiles').select('*').eq('id', user.id).single()
+      .from('profiles').select('*').eq('id', user.id).maybeSingle()
     setProfile(prof)
 
-    const { data: co } = await supabase
-      .from('companies').select('*').eq('user_id', user.id).maybeSingle()
-    setCompany(co)
+    const mitt = await hamtaMittForetag(supabase, user.id)
+    setCompany(mitt.company)
+    setRoll(mitt.roll)
+    setMedlemId(mitt.medlemId)
 
-    if (co) {
+    if (mitt.company) {
       const { data: m } = await supabase
         .from('matches')
         .select(`
           *,
           placements(
-            id, status, actual_start, actual_end,
+            id, status, actual_start, actual_end, handledare_id,
             lia_periods(name, start_date, end_date, weeks, classes(name, educations(program_name, school_name)))
           ),
           students(user_id, program, bio, skills, cv_path, pb_path, profiles(full_name, city))
         `)
-        .eq('company_id', co.id)
+        .eq('company_id', mitt.company.id)
         .order('score', { ascending: false })
 
-      const alla = m || []
+      let alla = m || []
+
+      // En handledare ska bara se de studenter hon är handledare för.
+      if (mitt.roll === 'handledare') {
+        alla = alla.filter((x: any) => x.placements?.handledare_id === mitt.medlemId)
+      }
+
       setMatches(alla.filter(x => ['söker', 'uppskjuten', 'förslag'].includes(x.placements?.status)))
       setPlaced(alla.filter(x => ['avtal', 'aktiv', 'klar'].includes(x.placements?.status)))
 
@@ -56,7 +70,7 @@ export default function CompanyDashboard() {
       if (plIds.length) {
         const { data: anm } = await supabase
           .from('platsanmalan').select('placement_id, status')
-          .in('placement_id', plIds).eq('company_id', co.id)
+          .in('placement_id', plIds).eq('company_id', mitt.company.id)
 
         const am: Record<string, string> = {}
         for (const a of anm || []) am[a.placement_id] = a.status
@@ -111,11 +125,15 @@ export default function CompanyDashboard() {
       <Sidebar role="company" name={profile?.full_name} subtitle={company?.company_name} />
 
       <main className="flex-1 p-5 sm:p-8 max-w-3xl">
-        <h1 className="text-2xl sm:text-3xl mb-1">Kandidater</h1>
+        <h1 className="text-2xl sm:text-3xl mb-1">
+          {barHandledare ? 'Dina studenter' : 'Kandidater'}
+        </h1>
         <p className="text-muted text-sm mb-7">
-          {company
-            ? 'Studenter som matchar det ni söker, er ort och er period.'
-            : 'Fyll i företagsprofilen så börjar vi matcha er mot studenter.'}
+          {!company
+            ? 'Fyll i företagsprofilen så börjar vi matcha er mot studenter.'
+            : barHandledare
+              ? 'Studenterna du är handledare för hos ' + company.company_name + '.'
+              : 'Studenter som matchar det ni söker, er ort och er period.'}
         </p>
 
         {error && (
@@ -138,6 +156,44 @@ export default function CompanyDashboard() {
               Fyll i profilen
             </button>
           </div>
+        ) : barHandledare ? (
+          <>
+            {placed.length === 0 && matches.length === 0 ? (
+              <div className="bg-card border border-line rounded-xl p-10 text-center">
+                <p className="mb-1">Inga studenter än</p>
+                <p className="text-muted text-sm">
+                  När någon på {company.company_name} utser dig till handledare för en
+                  student dyker hon upp här.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-card border border-line rounded-xl divide-y divide-line">
+                {[...matches, ...placed].map(m => {
+                  const p  = m.placements
+                  const st = m.students
+                  return (
+                    <div key={m.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{st?.profiles?.full_name}</p>
+                        <p className="text-muted text-sm">
+                          {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-muted text-sm">{p?.status}</span>
+                        <button
+                          onClick={() => chatt(st?.user_id, st?.profiles?.full_name)}
+                          className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition"
+                        >
+                          Meddelande
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-3 mb-7">
