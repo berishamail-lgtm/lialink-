@@ -47,6 +47,7 @@ export default function CompanyDashboard() {
         .from('matches')
         .select(`
           *,
+          lia_platser(titel),
           placements(
             id, status, actual_start, actual_end, handledare_id,
             lia_periods(name, start_date, end_date, weeks, classes(name, educations(program_name, school_name)))

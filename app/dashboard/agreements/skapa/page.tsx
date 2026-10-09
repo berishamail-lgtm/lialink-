@@ -21,6 +21,11 @@ export default function SkapaAvtal() {
   const [hEmail, setHEmail]           = useState('')
   const [coPhone, setCoPhone]         = useState('')
 
+  // Befintliga handledare hos valt företag, så UL slipper skriva om dem
+  const [hLista, setHLista]   = useState<any[]>([])
+  const [valdH, setValdH]     = useState('')
+  const [bjudIn, setBjudIn]   = useState(false)
+
   const [sAddress, setSAddress]       = useState('')
   const [sPhone, setSPhone]           = useState('')
   const [villkor, setVillkor]         = useState('')
@@ -108,6 +113,32 @@ export default function SkapaAvtal() {
     }
   }, [companyId])
 
+  // Hämta företagets registrerade handledare
+  useEffect(() => {
+    if (!companyId) { setHLista([]); setValdH(''); return }
+    async function hamta() {
+      const { data } = await supabase
+        .from('handledare')
+        .select('id, name, email, phone, roll, user_id')
+        .eq('company_id', companyId)
+        .eq('aktiv', true)
+        .order('name')
+      setHLista(data || [])
+      setValdH('')
+    }
+    hamta()
+  }, [companyId])
+
+  function valjHandledare(id: string) {
+    setValdH(id)
+    if (!id) return
+    const h = hLista.find(x => x.id === id)
+    if (!h) return
+    setHandledare(h.name || '')
+    setHEmail(h.email || '')
+    setHPhone(h.phone || '')
+  }
+
   async function create(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -140,6 +171,40 @@ export default function SkapaAvtal() {
     await supabase.from('placements')
       .update({ company_id: companyId, status: 'avtal' })
       .eq('id', placementId)
+
+    // Handledaren blir en post hos företaget och kopplas till placeringen.
+    // Då räknas hon i handledarnätverket även om hon aldrig skapar ett konto.
+    if (handledare.trim()) {
+      try {
+        const hRes = await fetch('/api/avtal-handledare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            placementId,
+            name:  handledare.trim(),
+            email: hEmail.trim(),
+            phone: hPhone.trim(),
+          }),
+        })
+        const hData = await hRes.json()
+
+        if (hRes.ok && bjudIn && hEmail.trim() && !hData.harKonto) {
+          await fetch('/api/bjud-in-handledare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              email: hEmail.trim(),
+              name:  handledare.trim(),
+            }),
+          })
+        }
+      } catch {
+        // Avtalet är sparat. Kopplingen kan göras om från handledarsidan.
+      }
+    }
+
     const { data: nyttAvtal } = await supabase
       .from('agreements').select('id').eq('placement_id', placementId).maybeSingle()
 
@@ -256,6 +321,28 @@ export default function SkapaAvtal() {
                 <p className="text-sm mb-3">Handledare på plats</p>
 
                 <div className="space-y-4">
+                  {hLista.length > 0 && (
+                    <div>
+                      <label className="block text-sm mb-1.5">
+                        Registrerad hos företaget
+                      </label>
+                      <select value={valdH} onChange={e => valjHandledare(e.target.value)} className={field}>
+                        <option value="">Ny handledare</option>
+                        {hLista.map(h => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                            {h.roll ? ' — ' + h.roll : ''}
+                            {h.user_id ? ' (har konto)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-muted text-xs mt-1.5">
+                        Välj en befintlig så slipper du dubbletter. Lämnar du "Ny
+                        handledare" skapas hon när avtalet sparas.
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm mb-1.5">Namn</label>
                     <input value={handledare} onChange={e => setHandledare(e.target.value)} required placeholder="Anna Andersson" className={field} />
@@ -270,10 +357,29 @@ export default function SkapaAvtal() {
                       <input type="email" value={hEmail} onChange={e => setHEmail(e.target.value)} placeholder="anna@foretag.se" className={field} />
                     </div>
                   </div>
+
+                  {hEmail.trim() && (
+                    <label className="flex items-start gap-2.5 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={bjudIn}
+                        onChange={e => setBjudIn(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Bjud in handledaren till ett eget konto
+                        <span className="block text-muted text-xs mt-0.5">
+                          Hon får ett mejl och kan följa sin student och signera
+                          digitalt. Hon behöver inget konto för att stå på avtalet.
+                        </span>
+                      </span>
+                    </label>
+                  )}
                 </div>
 
                 <p className="text-muted text-xs mt-3">
-                  Handledaren får utvärderingsformuläret när LIA-perioden är slut.
+                  Handledaren får utvärderingsformuläret när LIA-perioden är slut,
+                  och räknas i ditt handledarnätverk.
                 </p>
               </div>
             </section>
