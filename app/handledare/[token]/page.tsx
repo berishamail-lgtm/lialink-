@@ -48,15 +48,24 @@ export default function HandledareInbjudan() {
     if (authErr) { setError(authErr.message); setSaving(false); return }
 
     const userId = signUp.user?.id
-    if (userId) {
-      await supabase.from('company_members').insert({
-        company_id:  invite.company_id,
-        user_id:     userId,
-        member_role: 'handledare',
-      })
-      await supabase.from('member_invites')
-        .update({ accepted_at: new Date().toISOString() })
-        .eq('id', invite.id)
+
+    if (!userId) {
+      setError('Kontot kunde inte skapas. Försök igen.')
+      setSaving(false)
+      return
+    }
+
+    const res = await fetch('/api/koppla-handledare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, userId }),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error || 'Kontot skapades men kunde inte kopplas till företaget.')
+      setSaving(false)
+      return
     }
 
     router.push('/dashboard/company')
