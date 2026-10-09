@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   // Redan kopplat?
   const { data: co } = await supabase
     .from('companies')
-    .select('id, user_id, claimed')
+    .select('id, name, user_id, claimed')
     .eq('id', invite.company_id)
     .maybeSingle()
 
@@ -43,6 +43,39 @@ export async function POST(req: NextRequest) {
       { error: 'Företaget är redan kopplat till ett annat konto' },
       { status: 409 }
     )
+  }
+
+  // Profilrad måste finnas innan companies.user_id kan sättas (foreign key).
+  // Kontot är ofta obekräftat här, så ingen session finns som kan skapa den.
+  const { data: befintligProfil } = await supabase
+    .from('profiles')
+    .select('id, role')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!befintligProfil) {
+    const { data: authData, error: authErr } = await supabase.auth.admin.getUserById(userId)
+
+    if (authErr || !authData?.user?.email) {
+      return NextResponse.json(
+        { error: 'Kunde inte läsa användarens e-postadress' },
+        { status: 500 }
+      )
+    }
+
+    const { error: pErr } = await supabase.from('profiles').insert({
+      id: userId,
+      email: authData.user.email,
+      role: 'company',
+      full_name: co.name ?? null,
+    })
+
+    if (pErr) {
+      return NextResponse.json(
+        { error: 'Kunde inte skapa profil: ' + pErr.message },
+        { status: 500 }
+      )
+    }
   }
 
   const { error: uErr } = await supabase
