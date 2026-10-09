@@ -140,7 +140,7 @@ export default function LoginPage() {
             </Link>
             <p className="text-muted">
               Har du inget konto?{' '}
-              <Link href="/registrera" className="text-accent hover:underline">
+              <Link href="/register" className="text-accent hover:underline">
                 Registrera dig
               </Link>
             </p>

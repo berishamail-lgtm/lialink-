@@ -1,23 +1,10 @@
 import Link from 'next/link'
+import StartHeader from './components/StartHeader'
 
 export default function Home() {
   return (
     <main className="min-h-screen">
-      <header className="border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-6 sm:px-10 h-16 flex items-center justify-between">
-          <span className="font-display font-extrabold text-xl text-white">
-            LIA<span className="text-accent">link</span>
-          </span>
-          <nav className="flex items-center gap-2">
-            <Link href="/login" className="text-sm text-white/50 hover:text-white px-4 py-2 rounded-full transition">
-              Logga in
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-white text-ink px-5 py-2 rounded-full hover:opacity-85 transition">
-              Skapa konto
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <StartHeader />
 
       <section className="max-w-6xl mx-auto px-6 sm:px-10 pt-20 pb-24">
         <h1 className="text-white text-4xl sm:text-6xl lg:text-7xl max-w-3xl">
@@ -90,7 +77,7 @@ export default function Home() {
           <span className="font-display font-bold text-white/60">
             LIA<span className="text-accent">link</span>
           </span>
-                <div className="flex flex-wrap gap-5">
+          <div className="flex flex-wrap gap-5">
             <Link href="/integritetspolicy" className="hover:text-white/60 transition">Integritetspolicy</Link>
             <Link href="/anvandarvillkor" className="hover:text-white/60 transition">Användarvillkor</Link>
             <span>Pilotversion</span>
