@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
-  const supabase = createClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -140,7 +139,7 @@ export default function LoginPage() {
             </Link>
             <p className="text-muted">
               Har du inget konto?{' '}
-              <Link href="/register" className="text-accent hover:underline">
+              <Link href="/registrera" className="text-accent hover:underline">
                 Registrera dig
               </Link>
             </p>
