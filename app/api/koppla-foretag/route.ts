@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   // Redan kopplat?
   const { data: co } = await supabase
     .from('companies')
-    .select('id, name, user_id, claimed')
+    .select('id, user_id, claimed')
     .eq('id', invite.company_id)
     .maybeSingle()
 
@@ -67,7 +67,6 @@ export async function POST(req: NextRequest) {
       id: userId,
       email: authData.user.email,
       role: 'company',
-      full_name: co.name ?? null,
     })
 
     if (pErr) {
