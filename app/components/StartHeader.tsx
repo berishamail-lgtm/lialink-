@@ -26,7 +26,7 @@ export default function StartHeader() {
 
       if (avbruten) return
 
-      let mal = '/dashboard'
+      let mal = '/dashboard/education'
       if (profil?.is_admin) mal = '/dashboard/admin'
       else if (profil?.role === 'student') mal = '/dashboard/student'
       else if (profil?.role === 'company') mal = '/dashboard/company'
