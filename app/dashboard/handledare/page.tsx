@@ -13,6 +13,7 @@ type Rad = {
   roll: string | null
   aktiv: boolean
   harKonto: boolean
+  userId: string | null
   foretag: string
   ort: string | null
   companyId: string
@@ -112,6 +113,7 @@ export default function ULHandledare() {
         roll: x.roll,
         aktiv: x.aktiv,
         harKonto: !!x.user_id,
+        userId: x.user_id || null,
         foretag: x.companies?.company_name || 'Okänt företag',
         ort: x.companies?.city || null,
         companyId: x.company_id,
@@ -143,6 +145,10 @@ export default function ULHandledare() {
   const totalMottagna = rader.reduce((s, r) => s + r.mottagna, 0)
   const medKonto      = rader.filter(r => r.harKonto).length
   const medPlatser    = rader.filter(r => r.oppnaPlatser > 0).length
+
+  function skriv(userId: string, namn: string) {
+    router.push('/dashboard/messages?to=' + userId + '&name=' + encodeURIComponent(namn || ''))
+  }
 
   function arstal(iso: string | null) {
     if (!iso) return null
@@ -252,6 +258,28 @@ export default function ULHandledare() {
                             Tagit emot från {r.utbildningar.join(', ')}
                           </p>
                         )}
+
+                        <div className="flex flex-wrap items-center gap-4 mt-3">
+                          {r.userId ? (
+                            <button
+                              onClick={() => skriv(r.userId!, r.name)}
+                              className="bg-text text-paper rounded-full px-4 py-1.5 text-sm font-medium hover:opacity-85 transition"
+                            >
+                              Skriv
+                            </button>
+                          ) : r.email ? (
+                            <a
+                              href={'mailto:' + r.email}
+                              className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition"
+                            >
+                              Mejla
+                            </a>
+                          ) : (
+                            <span className="text-muted text-xs">
+                              Saknar både konto och e-post
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-right shrink-0">

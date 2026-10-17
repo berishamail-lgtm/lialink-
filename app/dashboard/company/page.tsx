@@ -50,7 +50,10 @@ export default function CompanyDashboard() {
           lia_platser(titel),
           placements(
             id, status, actual_start, actual_end, handledare_id,
-            lia_periods(name, start_date, end_date, weeks, classes(name, educations(program_name, school_name)))
+            lia_periods(
+              name, start_date, end_date, weeks,
+              classes(name, educations(program_name, school_name, user_id, profiles:user_id(full_name)))
+            )
           ),
           students(user_id, program, bio, skills, cv_path, pb_path, profiles(full_name, city))
         `)
@@ -115,6 +118,18 @@ export default function CompanyDashboard() {
     router.push('/dashboard/messages?to=' + userId + '&name=' + encodeURIComponent(namn || ''))
   }
 
+  // Utbildningsledaren bakom en placering, så handledaren slipper leta rätt
+  // på vem hon ska fråga.
+  function ulFor(p: any) {
+    const edu = p?.lia_periods?.classes?.educations
+    if (!edu?.user_id) return null
+    return {
+      userId: edu.user_id,
+      namn: edu.profiles?.full_name || 'Utbildningsledaren',
+      program: edu.program_name || '',
+    }
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-paper flex items-center justify-center">
       <p className="text-muted text-sm">Laddar</p>
@@ -172,22 +187,40 @@ export default function CompanyDashboard() {
                 {[...matches, ...placed].map(m => {
                   const p  = m.placements
                   const st = m.students
+                  const ul = ulFor(p)
                   return (
-                    <div key={m.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{st?.profiles?.full_name}</p>
-                        <p className="text-muted text-sm">
-                          {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
-                        </p>
+                    <div key={m.id} className="px-5 py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{st?.profiles?.full_name}</p>
+                          <p className="text-muted text-sm">
+                            {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
+                          </p>
+                          {ul && (
+                            <p className="text-muted text-sm">
+                              Utbildningsledare: {ul.namn}
+                              {ul.program ? ', ' + ul.program : ''}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-muted text-sm shrink-0">{p?.status}</span>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-muted text-sm">{p?.status}</span>
+
+                      <div className="flex flex-wrap items-center gap-3">
                         <button
                           onClick={() => chatt(st?.user_id, st?.profiles?.full_name)}
-                          className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition"
+                          className="bg-text text-paper rounded-full px-4 py-1.5 text-sm font-medium hover:opacity-85 transition"
                         >
-                          Meddelande
+                          Skriv till studenten
                         </button>
+                        {ul && (
+                          <button
+                            onClick={() => chatt(ul.userId, ul.namn)}
+                            className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition"
+                          >
+                            Skriv till utbildningsledaren
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -234,11 +267,6 @@ export default function CompanyDashboard() {
                         <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                           <div className="min-w-0">
                             <h2 className="text-base">{st?.profiles?.full_name}</h2>
-                            {m.lia_platser?.titel && (
-                              <p className="text-accent text-sm mt-0.5">
-                                Matchar: {m.lia_platser.titel}
-                              </p>
-                            )}
                             <p className="text-muted text-sm mt-0.5">
                               {edu?.program_name}
                               {st?.profiles?.city ? ', ' + st.profiles.city : ''}
@@ -351,22 +379,40 @@ export default function CompanyDashboard() {
                   {placed.map(m => {
                     const p  = m.placements
                     const st = m.students
+                    const ul = ulFor(p)
                     return (
-                      <div key={m.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{st?.profiles?.full_name}</p>
-                          <p className="text-muted text-sm">
-                            {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
-                          </p>
+                      <div key={m.id} className="px-5 py-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{st?.profiles?.full_name}</p>
+                            <p className="text-muted text-sm">
+                              {p?.lia_periods?.name}, {p?.actual_start || p?.lia_periods?.start_date} till {p?.actual_end || p?.lia_periods?.end_date}
+                            </p>
+                            {ul && (
+                              <p className="text-muted text-sm">
+                                Utbildningsledare: {ul.namn}
+                                {ul.program ? ', ' + ul.program : ''}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-muted text-sm shrink-0">{p?.status}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-muted text-sm">{p?.status}</span>
+
+                        <div className="flex flex-wrap items-center gap-3">
                           <button
                             onClick={() => chatt(st?.user_id, st?.profiles?.full_name)}
-                            className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition"
+                            className="bg-text text-paper rounded-full px-4 py-1.5 text-sm font-medium hover:opacity-85 transition"
                           >
-                            Meddelande
+                            Skriv till studenten
                           </button>
+                          {ul && (
+                            <button
+                              onClick={() => chatt(ul.userId, ul.namn)}
+                              className="border border-line rounded-full px-4 py-1.5 text-sm text-muted hover:border-text/30 transition"
+                            >
+                              Skriv till utbildningsledaren
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
