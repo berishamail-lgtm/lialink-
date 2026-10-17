@@ -123,12 +123,18 @@ export async function POST(req: NextRequest) {
     const delar = [harKompetenser, harBio, harOrt, harCv, harPb]
     const profilProcent = Math.round((delar.filter(Boolean).length / delar.length) * 100)
 
-    const mina = (matchningar || []).filter((m: any) => m.student_id === s.id)
+    const mina: any[] = (matchningar || []).filter((m: any) => m.student_id === s.id)
     const sorterade = [...mina].sort((a: any, b: any) => b.score - a.score)
-    const topp = sorterade[0]
+    const topp: any = sorterade[0] || null
 
-    const pl = (placeringar || []).find((p: any) => p.student_id === s.id)
-    const period = pl ? (Array.isArray(pl.lia_periods) ? pl.lia_periods[0] : pl.lia_periods) : null
+    const toppCo: any = topp
+      ? (Array.isArray(topp.companies) ? topp.companies[0] : topp.companies)
+      : null
+
+    const pl: any = (placeringar || []).find((p: any) => p.student_id === s.id) || null
+    const period: any = pl
+      ? (Array.isArray(pl.lia_periods) ? pl.lia_periods[0] : pl.lia_periods)
+      : null
 
     return {
       studentId: s.id,
@@ -143,9 +149,7 @@ export async function POST(req: NextRequest) {
       matchTotalt: mina.length,
       matchBra:    mina.filter((m: any) => m.score >= 60).length,
       toppPoang:   topp?.score ?? null,
-      toppForetag: topp
-        ? (Array.isArray(topp.companies) ? topp.companies[0]?.company_name : topp.companies?.company_name) || null
-        : null,
+      toppForetag: toppCo?.company_name || null,
 
       kontaktade: s.user_id ? (kontaktadeAv[s.user_id]?.size || 0) : 0,
       svar:       s.user_id ? (svarTill[s.user_id]?.size || 0)     : 0,
