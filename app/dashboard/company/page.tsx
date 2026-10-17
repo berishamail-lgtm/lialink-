@@ -234,6 +234,11 @@ export default function CompanyDashboard() {
                         <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                           <div className="min-w-0">
                             <h2 className="text-base">{st?.profiles?.full_name}</h2>
+                            {m.lia_platser?.titel && (
+                              <p className="text-accent text-sm mt-0.5">
+                                Matchar: {m.lia_platser.titel}
+                              </p>
+                            )}
                             <p className="text-muted text-sm mt-0.5">
                               {edu?.program_name}
                               {st?.profiles?.city ? ', ' + st.profiles.city : ''}
