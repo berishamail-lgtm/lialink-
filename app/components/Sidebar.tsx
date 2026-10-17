@@ -16,6 +16,7 @@ const menus: Record<string, { href: string; label: string }[]> = {
     { href: '/dashboard/education',      label: 'Översikt' },
     { href: '/dashboard/planering',      label: 'Planering' },
     { href: '/dashboard/students',       label: 'Studenter' },
+    { href: '/dashboard/aktivitet',      label: 'Aktivitet' },
     { href: '/dashboard/natverk',        label: 'Företagsnätverk' },
     { href: '/dashboard/handledare',     label: 'Handledare' },
     { href: '/dashboard/agreements',     label: 'Avtal' },
